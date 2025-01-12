@@ -1,5 +1,6 @@
-use egui::TextWrapMode;
-use egui_extras::{Column, TableBuilder};
+use egui_extras::{Column as eguiColumn, TableBuilder};
+use sqlx::Column;
+use sqlx::Row;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
 
@@ -19,7 +20,7 @@ pub struct Rosemary {
     code: String,
     #[serde(skip)]
     db_pool: Option<Pool<Postgres>>,
-    query_result: String,
+    res_columns: Vec<String>,
 }
 
 impl Default for Rosemary {
@@ -27,7 +28,7 @@ impl Default for Rosemary {
         Self {
             code: "".to_owned(),
             db_pool: None,
-            query_result: "No results yet.".to_owned(),
+            res_columns: vec![String::from("")],
         }
     }
 }
@@ -69,9 +70,6 @@ impl eframe::App for Rosemary {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.add_space(16.0);
-
-                egui::widgets::global_theme_preference_buttons(ui);
             });
         });
 
@@ -102,20 +100,29 @@ impl eframe::App for Rosemary {
             );
 
             if ui.add(egui::Button::new("Execute")).clicked() {
-                if let Some(query_str) = self.code.clone().into() {
+                if !self.code.trim().is_empty() {
                     let db_pool = self.db_pool.clone();
-                    let result_ref = &mut self.query_result;
-                    let runtime = Runtime::new().expect("Failed to create runtime");
+                    let query_str = self.code.clone();
+                    let col_res_ref = &mut self.res_columns;
+                    let ctx_ref = ctx.clone();
 
+                    let runtime = Runtime::new().expect("Failed to create runtime");
                     runtime.block_on(async move {
                         if let Some(pool) = db_pool {
                             match sqlx::query(&query_str).fetch_all(&pool).await {
                                 Ok(rows) => {
-                                    *result_ref = String::from(format!("Results: {:?}", rows));
-                                    println!("{:?}", &result_ref);
+                                    if !rows.is_empty() {
+                                        let col_names: Vec<String> = rows[0]
+                                            .columns()
+                                            .iter()
+                                            .map(|col| String::from(col.name()))
+                                            .collect();
+                                        *col_res_ref = col_names;
+                                        ctx_ref.request_repaint();
+                                    }
                                 }
-                                Err(_) => {
-                                    println!("Failed");
+                                Err(e) => {
+                                    println!("Query failed: {e}");
                                 }
                             }
                         }
@@ -125,52 +132,34 @@ impl eframe::App for Rosemary {
 
             ui.separator();
 
-            let columns = [
-                String::from("example"),
-                String::from("example2"),
-                String::from("example3"),
-            ];
-
-            let available_height = ui.available_height();
             let mut table = TableBuilder::new(ui)
                 .striped(true)
                 .resizable(true)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .min_scrolled_height(0.0)
-                .max_scroll_height(available_height);
+                .min_scrolled_height(0.0);
 
-            for _ in &columns {
-                table = table.column(Column::auto());
+            for _ in &self.res_columns {
+                table = table.column(eguiColumn::auto());
             }
-
-            let text_height = 40 as f32;
 
             table
                 .header(20.0, |mut header| {
-                    for column_name in &columns {
+                    for column_name in &self.res_columns {
                         header.col(|ui| {
                             ui.strong(column_name);
                         });
                     }
                 })
                 .body(|body| {
-                    body.rows(text_height, 100, |mut row| {
-                        let row_index = row.index() + 1;
-
-                        row.set_selected(false);
-
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.add(
-                                egui::Label::new("Thousands of rows of even height")
-                                    .wrap_mode(TextWrapMode::Extend),
-                            );
-                        });
-                        //TODO: do the same as the table example for the rows here over the pgvec
-                        //result
-                    })
+                    let row_count = 100;
+                    let text_height = 20.0;
+                    body.rows(text_height, row_count, |mut row| {
+                        for _ in &self.res_columns {
+                            row.col(|ui| {
+                                ui.label("...");
+                            });
+                        }
+                    });
                 });
         });
     }
