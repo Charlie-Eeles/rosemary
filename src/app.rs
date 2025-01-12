@@ -1,8 +1,17 @@
 use egui_extras::{Column as eguiColumn, TableBuilder};
 use sqlx::Column;
 use sqlx::Row;
+use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+enum CellValue {
+    Text(String),
+    Int(i32),
+    Null,
+    Unsupported,
+}
 
 fn get_env_var_or_exit(name: &str) -> String {
     match std::env::var(name) {
@@ -14,13 +23,16 @@ fn get_env_var_or_exit(name: &str) -> String {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 #[serde(default)]
 pub struct Rosemary {
     code: String,
     #[serde(skip)]
     db_pool: Option<Pool<Postgres>>,
+    #[serde(skip)]
     res_columns: Vec<String>,
+    #[serde(skip)]
+    parsed_res_rows: Vec<Vec<CellValue>>,
 }
 
 impl Default for Rosemary {
@@ -29,6 +41,7 @@ impl Default for Rosemary {
             code: "".to_owned(),
             db_pool: None,
             res_columns: vec![String::from("")],
+            parsed_res_rows: Vec::new(),
         }
     }
 }
@@ -104,6 +117,7 @@ impl eframe::App for Rosemary {
                     let db_pool = self.db_pool.clone();
                     let query_str = self.code.clone();
                     let col_res_ref = &mut self.res_columns;
+                    let parsed_row_res_ref = &mut self.parsed_res_rows;
                     let ctx_ref = ctx.clone();
 
                     let runtime = Runtime::new().expect("Failed to create runtime");
@@ -118,6 +132,37 @@ impl eframe::App for Rosemary {
                                             .map(|col| String::from(col.name()))
                                             .collect();
                                         *col_res_ref = col_names;
+                                        let mut parsed_values: Vec<Vec<CellValue>> = Vec::new();
+                                        for row in rows {
+                                            let mut row_values: Vec<CellValue> = Vec::new();
+                                            for col in row.columns() {
+                                                let col_type = col.type_info().to_string();
+                                                let value = if row
+                                                    .try_get_raw(col.ordinal())
+                                                    .is_ok_and(|v| v.is_null())
+                                                {
+                                                    CellValue::Null
+                                                } else {
+                                                    match col_type.to_uppercase().as_str() {
+                                                        "TEXT" | "VARCHAR" | "NAME" | "CITEXT"
+                                                        | "BPCHAR" | "CHAR" => row
+                                                            .try_get::<String, usize>(col.ordinal())
+                                                            .map(CellValue::Text)
+                                                            .unwrap_or(CellValue::Unsupported),
+                                                        "INT" | "SERIAL" | "INT4" => row
+                                                            .try_get::<i32, usize>(col.ordinal())
+                                                            .map(CellValue::Int)
+                                                            .unwrap_or(CellValue::Unsupported),
+                                                        _ => CellValue::Unsupported,
+                                                    }
+                                                };
+
+                                                row_values.push(value);
+                                            }
+                                            parsed_values.push(row_values);
+                                        }
+
+                                        *parsed_row_res_ref = parsed_values;
                                         ctx_ref.request_repaint();
                                     }
                                 }
@@ -151,13 +196,20 @@ impl eframe::App for Rosemary {
                     }
                 })
                 .body(|body| {
-                    let row_count = 100;
                     let text_height = 20.0;
-                    body.rows(text_height, row_count, |mut row| {
-                        for _ in &self.res_columns {
-                            row.col(|ui| {
-                                ui.label("...");
-                            });
+                    body.rows(text_height, self.parsed_res_rows.len(), |mut row| {
+                        if let Some(row_data) = self.parsed_res_rows.get(row.index()) {
+                            for cell in row_data {
+                                row.col(|ui| {
+                                    let cell_content = match cell {
+                                        CellValue::Text(val) => val.clone(),
+                                        CellValue::Int(val) => val.to_string(),
+                                        CellValue::Null => "NULL".to_string(),
+                                        CellValue::Unsupported => "Unsupported".to_string(),
+                                    };
+                                    ui.label(cell_content);
+                                });
+                            }
                         }
                     });
                 });
