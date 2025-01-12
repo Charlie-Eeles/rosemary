@@ -1,8 +1,10 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use dotenv::dotenv;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
+    dotenv().ok();
     env_logger::init();
 
     let native_options = eframe::NativeOptions {

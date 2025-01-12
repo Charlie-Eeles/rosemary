@@ -3,6 +3,16 @@ use egui_extras::{Column, TableBuilder};
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
 
+fn get_env_var_or_exit(name: &str) -> String {
+    match std::env::var(name) {
+        Ok(val) => val,
+        Err(_) => {
+            println!("Required variable not set in environment: {name}");
+            std::process::exit(1);
+        }
+    }
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Rosemary {
@@ -37,8 +47,9 @@ impl Rosemary {
 
     fn initialise_db(&mut self) {
         let runtime = Runtime::new().expect("Failed to create runtime");
+        let database_url = get_env_var_or_exit("DATABASE_URL");
         self.db_pool = Some(runtime.block_on(async {
-            sqlx::PgPool::connect("")
+            sqlx::PgPool::connect(&database_url)
                 .await
                 .expect("Failed to connect to db")
         }))
