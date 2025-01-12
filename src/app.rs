@@ -28,6 +28,10 @@ fn get_env_var_or_exit(name: &str) -> String {
 pub struct Rosemary {
     code: String,
     #[serde(skip)]
+    current_page: usize,
+    #[serde(skip)]
+    rows_per_page: usize,
+    #[serde(skip)]
     db_pool: Option<Pool<Postgres>>,
     #[serde(skip)]
     res_columns: Vec<String>,
@@ -42,6 +46,8 @@ impl Default for Rosemary {
             db_pool: None,
             res_columns: vec![String::from("")],
             parsed_res_rows: Vec::new(),
+            current_page: 0,
+            rows_per_page: 1000,
         }
     }
 }
@@ -177,42 +183,82 @@ impl eframe::App for Rosemary {
 
             ui.separator();
 
-            let mut table = TableBuilder::new(ui)
-                .striped(true)
-                .resizable(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .min_scrolled_height(0.0);
+            egui::ScrollArea::both().show(ui, |ui| {
+                let mut table = TableBuilder::new(ui)
+                    .striped(true)
+                    .resizable(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .min_scrolled_height(0.0);
 
-            for _ in &self.res_columns {
-                table = table.column(eguiColumn::auto());
-            }
+                for _ in &self.res_columns {
+                    table = table.column(eguiColumn::auto());
+                }
 
-            table
-                .header(20.0, |mut header| {
-                    for column_name in &self.res_columns {
-                        header.col(|ui| {
-                            ui.strong(column_name);
+                table
+                    .header(20.0, |mut header| {
+                        for column_name in &self.res_columns {
+                            header.col(|ui| {
+                                ui.strong(column_name);
+                            });
+                        }
+                    })
+                    .body(|body| {
+                        let text_height = 20.0;
+                        let start_index = self.current_page * self.rows_per_page;
+                        let end_index =
+                            (start_index + self.rows_per_page).min(self.parsed_res_rows.len());
+                        let total_rows = if end_index > 0 {
+                            end_index - start_index
+                        } else {
+                            0
+                        };
+
+                        body.rows(text_height, total_rows, |mut row| {
+                            if let Some(row_data) =
+                                self.parsed_res_rows.get(start_index + row.index())
+                            {
+                                for cell in row_data {
+                                    row.col(|ui| {
+                                        let cell_content = match cell {
+                                            CellValue::Text(val) => val.clone(),
+                                            CellValue::Int(val) => val.to_string(),
+                                            CellValue::Null => "NULL".to_string(),
+                                            CellValue::Unsupported => "Unsupported".to_string(),
+                                        };
+                                        ui.label(cell_content);
+                                    });
+                                }
+                            }
                         });
-                    }
-                })
-                .body(|body| {
-                    let text_height = 20.0;
-                    body.rows(text_height, self.parsed_res_rows.len(), |mut row| {
-                        if let Some(row_data) = self.parsed_res_rows.get(row.index()) {
-                            for cell in row_data {
-                                row.col(|ui| {
-                                    let cell_content = match cell {
-                                        CellValue::Text(val) => val.clone(),
-                                        CellValue::Int(val) => val.to_string(),
-                                        CellValue::Null => "NULL".to_string(),
-                                        CellValue::Unsupported => "Unsupported".to_string(),
-                                    };
-                                    ui.label(cell_content);
-                                });
+                    });
+            });
+
+            if self.parsed_res_rows.len() > 1000 {
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Previous").clicked() {
+                            if self.current_page > 0 {
+                                self.current_page -= 1;
+                            }
+                        }
+
+                        ui.label(format!(
+                            "Page {}/{}",
+                            self.current_page + 1,
+                            (self.parsed_res_rows.len() + self.rows_per_page - 1)
+                                / self.rows_per_page
+                        ));
+                        if ui.button("Next").clicked() {
+                            if (self.current_page + 1) * self.rows_per_page
+                                < self.parsed_res_rows.len()
+                            {
+                                self.current_page += 1;
                             }
                         }
                     });
                 });
+            }
         });
     }
 }
