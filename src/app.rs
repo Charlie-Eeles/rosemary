@@ -92,7 +92,7 @@ impl eframe::App for Rosemary {
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::SidePanel::left("editor").show(ctx, |ui| {
             let theme =
                 egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
 
@@ -112,7 +112,7 @@ impl eframe::App for Rosemary {
                 egui::TextEdit::multiline(&mut self.code)
                     .font(egui::TextStyle::Monospace)
                     .code_editor()
-                    .desired_rows(10)
+                    .desired_rows(40)
                     .lock_focus(true)
                     .desired_width(f32::INFINITY)
                     .layouter(&mut layouter),
@@ -180,9 +180,9 @@ impl eframe::App for Rosemary {
                     });
                 }
             }
+        });
 
-            ui.separator();
-
+        egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
                 let mut table = TableBuilder::new(ui)
                     .striped(true)
