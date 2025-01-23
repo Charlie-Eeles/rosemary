@@ -83,6 +83,7 @@ impl eframe::App for Rosemary {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         catppuccin_egui::set_theme(ctx, catppuccin_egui::MOCHA);
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
@@ -92,6 +93,8 @@ impl eframe::App for Rosemary {
                 });
             });
         });
+
+        let mut should_execute = false;
 
         egui::SidePanel::left("editor").show(ctx, |ui| {
             let theme =
@@ -119,69 +122,77 @@ impl eframe::App for Rosemary {
                     .layouter(&mut layouter),
             );
 
+            if ctx.input(|i| {
+                i.key_pressed(egui::Key::Enter) && (i.modifiers.command || i.modifiers.ctrl)
+            }) {
+                should_execute = true;
+            }
+
             if ui.add(egui::Button::new("Execute")).clicked() {
-                if !self.code.trim().is_empty() {
-                    let db_pool = self.db_pool.clone();
-                    let query_str = self.code.clone();
-                    let col_res_ref = &mut self.res_columns;
-                    let parsed_row_res_ref = &mut self.parsed_res_rows;
-                    let ctx_ref = ctx.clone();
-
-                    let runtime = Runtime::new().expect("Failed to create runtime");
-                    runtime.block_on(async move {
-                        if let Some(pool) = db_pool {
-                            match sqlx::query(&query_str).fetch_all(&pool).await {
-                                Ok(rows) => {
-                                    if !rows.is_empty() {
-                                        let col_names: Vec<String> = rows[0]
-                                            .columns()
-                                            .iter()
-                                            .map(|col| String::from(col.name()))
-                                            .collect();
-                                        *col_res_ref = col_names;
-                                        let mut parsed_values: Vec<Vec<CellValue>> = Vec::new();
-                                        for row in rows {
-                                            let mut row_values: Vec<CellValue> = Vec::new();
-                                            for col in row.columns() {
-                                                let col_type = col.type_info().to_string();
-                                                let value = if row
-                                                    .try_get_raw(col.ordinal())
-                                                    .is_ok_and(|v| v.is_null())
-                                                {
-                                                    CellValue::Null
-                                                } else {
-                                                    match col_type.to_uppercase().as_str() {
-                                                        "TEXT" | "VARCHAR" | "NAME" | "CITEXT"
-                                                        | "BPCHAR" | "CHAR" => row
-                                                            .try_get::<String, usize>(col.ordinal())
-                                                            .map(CellValue::Text)
-                                                            .unwrap_or(CellValue::Unsupported),
-                                                        "INT" | "SERIAL" | "INT4" => row
-                                                            .try_get::<i32, usize>(col.ordinal())
-                                                            .map(CellValue::Int)
-                                                            .unwrap_or(CellValue::Unsupported),
-                                                        _ => CellValue::Unsupported,
-                                                    }
-                                                };
-
-                                                row_values.push(value);
-                                            }
-                                            parsed_values.push(row_values);
-                                        }
-
-                                        *parsed_row_res_ref = parsed_values;
-                                        ctx_ref.request_repaint();
-                                    }
-                                }
-                                Err(e) => {
-                                    println!("Query failed: {e}");
-                                }
-                            }
-                        }
-                    });
-                }
+                should_execute = true;
             }
         });
+
+        if should_execute && !self.code.trim().is_empty() {
+            let db_pool = self.db_pool.clone();
+            let query_str = self.code.clone();
+            let col_res_ref = &mut self.res_columns;
+            let parsed_row_res_ref = &mut self.parsed_res_rows;
+            let ctx_ref = ctx.clone();
+
+            let runtime = Runtime::new().expect("Failed to create runtime");
+            runtime.block_on(async move {
+                if let Some(pool) = db_pool {
+                    match sqlx::query(&query_str).fetch_all(&pool).await {
+                        Ok(rows) => {
+                            if !rows.is_empty() {
+                                let col_names: Vec<String> = rows[0]
+                                    .columns()
+                                    .iter()
+                                    .map(|col| String::from(col.name()))
+                                    .collect();
+                                *col_res_ref = col_names;
+                                let mut parsed_values: Vec<Vec<CellValue>> = Vec::new();
+                                for row in rows {
+                                    let mut row_values: Vec<CellValue> = Vec::new();
+                                    for col in row.columns() {
+                                        let col_type = col.type_info().to_string();
+                                        let value = if row
+                                            .try_get_raw(col.ordinal())
+                                            .is_ok_and(|v| v.is_null())
+                                        {
+                                            CellValue::Null
+                                        } else {
+                                            match col_type.to_uppercase().as_str() {
+                                                "TEXT" | "VARCHAR" | "NAME" | "CITEXT"
+                                                | "BPCHAR" | "CHAR" => row
+                                                    .try_get::<String, usize>(col.ordinal())
+                                                    .map(CellValue::Text)
+                                                    .unwrap_or(CellValue::Unsupported),
+                                                "INT" | "SERIAL" | "INT4" => row
+                                                    .try_get::<i32, usize>(col.ordinal())
+                                                    .map(CellValue::Int)
+                                                    .unwrap_or(CellValue::Unsupported),
+                                                _ => CellValue::Unsupported,
+                                            }
+                                        };
+
+                                        row_values.push(value);
+                                    }
+                                    parsed_values.push(row_values);
+                                }
+
+                                *parsed_row_res_ref = parsed_values;
+                                ctx_ref.request_repaint();
+                            }
+                        }
+                        Err(e) => {
+                            println!("Query failed: {e}");
+                        }
+                    }
+                }
+            });
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
