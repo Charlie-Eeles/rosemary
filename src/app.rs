@@ -5,13 +5,8 @@ use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
-enum CellValue {
-    Text(String),
-    Int(i32),
-    Null,
-    Unsupported,
-}
+use crate::postgres::convert_type;
+use crate::postgres::CellValue;
 
 fn get_env_var_or_exit(name: &str) -> String {
     match std::env::var(name) {
@@ -163,18 +158,7 @@ impl eframe::App for Rosemary {
                                         {
                                             CellValue::Null
                                         } else {
-                                            match col_type.to_uppercase().as_str() {
-                                                "TEXT" | "VARCHAR" | "NAME" | "CITEXT"
-                                                | "BPCHAR" | "CHAR" => row
-                                                    .try_get::<String, usize>(col.ordinal())
-                                                    .map(CellValue::Text)
-                                                    .unwrap_or(CellValue::Unsupported),
-                                                "INT" | "SERIAL" | "INT4" => row
-                                                    .try_get::<i32, usize>(col.ordinal())
-                                                    .map(CellValue::Int)
-                                                    .unwrap_or(CellValue::Unsupported),
-                                                _ => CellValue::Unsupported,
-                                            }
+                                            convert_type(&col_type.to_uppercase().as_str(), &col, &row)
                                         };
 
                                         row_values.push(value);
@@ -233,9 +217,15 @@ impl eframe::App for Rosemary {
                                     row.col(|ui| {
                                         let cell_content = match cell {
                                             CellValue::Text(val) => val.clone(),
-                                            CellValue::Int(val) => val.to_string(),
+                                            CellValue::SmallInt(val) => val.to_string(),
+                                            CellValue::MedInt(val) => val.to_string(),
+                                            CellValue::BigInt(val) => val.to_string(),
+                                            CellValue::SmallFloat(val) => val.to_string(),
+                                            CellValue::BigFloat(val) => val.to_string(),
                                             CellValue::Null => "NULL".to_string(),
                                             CellValue::Unsupported => "Unsupported".to_string(),
+                                            CellValue::Uuid(val) => val.to_string(),
+                                            CellValue::BigDecimal(val) => val.to_string(),
                                         };
                                         ui.label(cell_content);
                                     });
