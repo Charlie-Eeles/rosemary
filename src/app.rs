@@ -1,11 +1,11 @@
 use egui_extras::{Column as eguiColumn, TableBuilder};
 use sqlformat::QueryParams;
+use sqlformat::{format, FormatOptions};
 use sqlx::Column;
 use sqlx::Row;
 use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
-use sqlformat::{format, FormatOptions};
 
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
@@ -19,7 +19,6 @@ fn get_env_var_or_exit(name: &str) -> String {
         }
     }
 }
-
 
 fn format_sql(sql: &str) -> String {
     format(sql, &QueryParams::None, FormatOptions::default())
@@ -186,7 +185,8 @@ impl eframe::App for Rosemary {
                             }
                         }
                         Err(e) => {
-                            println!("Query failed: {e}");
+                            *col_res_ref = vec![String::from("error_message")];
+                            *parsed_row_res_ref = vec![vec![CellValue::Text(format!("{e}"))]];
                         }
                     }
                 }
