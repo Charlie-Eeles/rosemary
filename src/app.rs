@@ -1,9 +1,11 @@
 use egui_extras::{Column as eguiColumn, TableBuilder};
+use sqlformat::QueryParams;
 use sqlx::Column;
 use sqlx::Row;
 use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
+use sqlformat::{format, FormatOptions};
 
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
@@ -16,6 +18,11 @@ fn get_env_var_or_exit(name: &str) -> String {
             std::process::exit(1);
         }
     }
+}
+
+
+fn format_sql(sql: &str) -> String {
+    format(sql, &QueryParams::None, FormatOptions::default())
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
@@ -123,6 +130,10 @@ impl eframe::App for Rosemary {
                 should_execute = true;
             }
 
+            if ui.add(egui::Button::new("Format")).clicked() {
+                self.code = format_sql(&self.code);
+            }
+
             if ui.add(egui::Button::new("Execute")).clicked() {
                 should_execute = true;
             }
@@ -158,7 +169,11 @@ impl eframe::App for Rosemary {
                                         {
                                             CellValue::Null
                                         } else {
-                                            convert_type(&col_type.to_uppercase().as_str(), &col, &row)
+                                            convert_type(
+                                                &col_type.to_uppercase().as_str(),
+                                                &col,
+                                                &row,
+                                            )
                                         };
 
                                         row_values.push(value);
