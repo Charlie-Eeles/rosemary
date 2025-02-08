@@ -193,6 +193,30 @@ impl eframe::App for Rosemary {
             });
         }
 
+        egui::TopBottomPanel::bottom("pagination_panel").show(ctx, |ui| {
+            if self.parsed_res_rows.len() > 1000 {
+                ui.horizontal(|ui| {
+                    if ui.button("Previous").clicked() {
+                        if self.current_page > 0 {
+                            self.current_page -= 1;
+                        }
+                    }
+
+                    ui.label(format!(
+                        "Page {}/{}",
+                        self.current_page + 1,
+                        (self.parsed_res_rows.len() + self.rows_per_page - 1) / self.rows_per_page
+                    ));
+
+                    if ui.button("Next").clicked() {
+                        if (self.current_page + 1) * self.rows_per_page < self.parsed_res_rows.len() {
+                            self.current_page += 1;
+                        }
+                    }
+                });
+            }
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
                 let mut table = TableBuilder::new(ui)
@@ -249,33 +273,7 @@ impl eframe::App for Rosemary {
                         });
                     });
             });
-
-            if self.parsed_res_rows.len() > 1000 {
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        if ui.button("Previous").clicked() {
-                            if self.current_page > 0 {
-                                self.current_page -= 1;
-                            }
-                        }
-
-                        ui.label(format!(
-                            "Page {}/{}",
-                            self.current_page + 1,
-                            (self.parsed_res_rows.len() + self.rows_per_page - 1)
-                                / self.rows_per_page
-                        ));
-                        if ui.button("Next").clicked() {
-                            if (self.current_page + 1) * self.rows_per_page
-                                < self.parsed_res_rows.len()
-                            {
-                                self.current_page += 1;
-                            }
-                        }
-                    });
-                });
-            }
         });
     }
 }
+
