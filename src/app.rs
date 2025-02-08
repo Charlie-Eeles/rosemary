@@ -38,6 +38,8 @@ pub struct Rosemary {
     res_columns: Vec<String>,
     #[serde(skip)]
     parsed_res_rows: Vec<Vec<CellValue>>,
+    #[serde(skip)]
+    reversed: bool,
 }
 
 impl Default for Rosemary {
@@ -49,6 +51,7 @@ impl Default for Rosemary {
             parsed_res_rows: Vec::new(),
             current_page: 0,
             rows_per_page: 1000,
+            reversed: true,
         }
     }
 }
@@ -209,7 +212,8 @@ impl eframe::App for Rosemary {
                     ));
 
                     if ui.button("Next").clicked() {
-                        if (self.current_page + 1) * self.rows_per_page < self.parsed_res_rows.len() {
+                        if (self.current_page + 1) * self.rows_per_page < self.parsed_res_rows.len()
+                        {
                             self.current_page += 1;
                         }
                     }
@@ -233,12 +237,62 @@ impl eframe::App for Rosemary {
                     .header(20.0, |mut header| {
                         for column_name in &self.res_columns {
                             header.col(|ui| {
-                                ui.strong(column_name);
+                                egui::Sides::new().show(
+                                    ui,
+                                    |ui| {
+                                        ui.strong(column_name);
+                                    },
+                                    |ui| {
+                                        // TODO: make this work with more than just the ID column
+                                        if column_name == "id" {
+                                            if ui
+                                                .button(if self.reversed { "⬆" } else { "⬇" })
+                                                .clicked()
+                                            {
+                                                self.reversed = !self.reversed;
+
+                                                if let Some(id_index) =
+                                                    self.res_columns.iter().position(|c| c == "id")
+                                                {
+                                                    // TODO: simplify this logic
+                                                    self.parsed_res_rows.sort_by(|a, b| {
+                                                        let a_id = match &a[id_index] {
+                                                            CellValue::SmallInt(v) => *v as i64,
+                                                            CellValue::MedInt(v) => *v as i64,
+                                                            CellValue::BigInt(v) => *v,
+                                                            CellValue::Text(v) => {
+                                                                v.parse::<i64>().unwrap_or(0)
+                                                            }
+                                                            _ => 0,
+                                                        };
+
+                                                        let b_id = match &b[id_index] {
+                                                            CellValue::SmallInt(v) => *v as i64,
+                                                            CellValue::MedInt(v) => *v as i64,
+                                                            CellValue::BigInt(v) => *v,
+                                                            CellValue::Text(v) => {
+                                                                v.parse::<i64>().unwrap_or(0)
+                                                            }
+                                                            _ => 0,
+                                                        };
+
+                                                        if self.reversed {
+                                                            b_id.cmp(&a_id)
+                                                        } else {
+                                                            a_id.cmp(&b_id)
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    },
+                                );
                             });
                         }
                     })
                     .body(|body| {
                         let text_height = 20.0;
+
                         let start_index = self.current_page * self.rows_per_page;
                         let end_index =
                             (start_index + self.rows_per_page).min(self.parsed_res_rows.len());
@@ -276,4 +330,3 @@ impl eframe::App for Rosemary {
         });
     }
 }
-
