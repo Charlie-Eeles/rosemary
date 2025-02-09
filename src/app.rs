@@ -188,38 +188,16 @@ impl eframe::App for Rosemary {
             });
 
             egui::ScrollArea::both().show(ui, |ui| {
-                let table = TableBuilder::new(ui)
-                    .striped(true)
-                    .resizable(true)
-                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                    .min_scrolled_height(0.0)
-                    .column(eguiColumn::auto())
-                    .column(eguiColumn::auto());
+                for table in &self.tables {
+                    let table_name = table.table_name.as_deref().unwrap_or("NULL");
+                    let table_type = table.table_type.as_deref().unwrap_or("NULL");
+                    let button_label = format!("{table_name} [{table_type}]");
 
-                table
-                    .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            ui.strong(String::from("Tables"));
-                        });
-                        header.col(|ui| {
-                            ui.strong(String::from("Types"));
-                        });
-                    })
-                    .body(|body| {
-                        let text_height = 20.0;
-
-                        body.rows(text_height, self.tables.len(), |mut row| {
-                            if let Some(table) = self.tables.get(row.index()) {
-                                row.col(|ui| {
-                                    ui.label(table.table_name.as_deref().unwrap_or("NULL"));
-                                });
-
-                                row.col(|ui| {
-                                    ui.label(table.table_type.as_deref().unwrap_or("NULL"));
-                                });
-                            }
-                        });
-                    });
+                    if ui.button(button_label).clicked() {
+                        self.code = format!("SELECT * FROM {table_name};");
+                        should_execute = true;
+                    }
+                }
             });
         });
 
