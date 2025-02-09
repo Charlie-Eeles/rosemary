@@ -23,7 +23,7 @@ fn get_env_var_or_exit(name: &str) -> String {
 }
 
 fn format_sql(sql: &str) -> String {
-    format(sql, &QueryParams::None, FormatOptions::default())
+    format(sql, &QueryParams::None,  FormatOptions { indent: sqlformat::Indent::Spaces(2), uppercase: true, lines_between_queries: 1 } )
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
