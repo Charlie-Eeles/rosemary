@@ -10,6 +10,8 @@ use tokio::runtime::Runtime;
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
 
+const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
+
 fn get_env_var_or_exit(name: &str) -> String {
     match std::env::var(name) {
         Ok(val) => val,
@@ -40,6 +42,8 @@ pub struct Rosemary {
     parsed_res_rows: Vec<Vec<CellValue>>,
     #[serde(skip)]
     reversed: bool,
+    #[serde(skip)]
+    sort_by_col: String,
 }
 
 impl Default for Rosemary {
@@ -52,6 +56,7 @@ impl Default for Rosemary {
             current_page: 0,
             rows_per_page: 1000,
             reversed: true,
+            sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
         }
     }
 }
@@ -154,14 +159,17 @@ impl eframe::App for Rosemary {
                     match sqlx::query(&query_str).fetch_all(&pool).await {
                         Ok(rows) => {
                             if !rows.is_empty() {
-                                let col_names: Vec<String> = rows[0]
+                                let mut col_names: Vec<String> = rows[0]
                                     .columns()
                                     .iter()
                                     .map(|col| String::from(col.name()))
                                     .collect();
+                                col_names
+                                    .insert(col_names.len(), String::from(ROSEMARY_SORT_COL_STR));
                                 *col_res_ref = col_names;
+
                                 let mut parsed_values: Vec<Vec<CellValue>> = Vec::new();
-                                for row in rows {
+                                for (idx, row) in rows.iter().enumerate() {
                                     let mut row_values: Vec<CellValue> = Vec::new();
                                     for col in row.columns() {
                                         let col_type = col.type_info().to_string();
@@ -180,6 +188,7 @@ impl eframe::App for Rosemary {
 
                                         row_values.push(value);
                                     }
+                                    row_values.push(CellValue::BigInt(idx as i64));
                                     parsed_values.push(row_values);
                                 }
 
@@ -229,13 +238,19 @@ impl eframe::App for Rosemary {
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .min_scrolled_height(0.0);
 
-                for _ in &self.res_columns {
+                for column_name in &self.res_columns {
+                    if column_name == ROSEMARY_SORT_COL_STR {
+                        continue;
+                    }
                     table = table.column(eguiColumn::auto());
                 }
 
                 table
                     .header(20.0, |mut header| {
                         for column_name in &self.res_columns {
+                            if column_name == ROSEMARY_SORT_COL_STR {
+                                continue;
+                            }
                             header.col(|ui| {
                                 egui::Sides::new().show(
                                     ui,
@@ -243,46 +258,67 @@ impl eframe::App for Rosemary {
                                         ui.strong(column_name);
                                     },
                                     |ui| {
-                                        // TODO: make this work with more than just the ID column
-                                        if column_name == "id" {
-                                            if ui
-                                                .button(if self.reversed { "⬆" } else { "⬇" })
-                                                .clicked()
-                                            {
-                                                self.reversed = !self.reversed;
-
-                                                if let Some(id_index) =
-                                                    self.res_columns.iter().position(|c| c == "id")
+                                        if ui
+                                            .button(
+                                                if self.reversed && &self.sort_by_col == column_name
                                                 {
-                                                    // TODO: simplify this logic
-                                                    self.parsed_res_rows.sort_by(|a, b| {
-                                                        let a_id = match &a[id_index] {
-                                                            CellValue::SmallInt(v) => *v as i64,
-                                                            CellValue::MedInt(v) => *v as i64,
-                                                            CellValue::BigInt(v) => *v,
-                                                            CellValue::Text(v) => {
-                                                                v.parse::<i64>().unwrap_or(0)
-                                                            }
-                                                            _ => 0,
-                                                        };
+                                                    "⬆"
+                                                } else if &self.sort_by_col == column_name {
+                                                    "⬇"
+                                                } else {
+                                                    "⬆⬇"
+                                                },
+                                            )
+                                            .clicked()
+                                        {
+                                            if &self.sort_by_col != column_name {
+                                                self.sort_by_col = String::from(column_name);
+                                                self.reversed = false;
+                                            } else if !self.reversed {
+                                                self.reversed = true;
+                                            } else if self.reversed {
+                                                self.reversed = false;
+                                                self.sort_by_col =
+                                                    String::from(ROSEMARY_SORT_COL_STR);
+                                            };
 
-                                                        let b_id = match &b[id_index] {
-                                                            CellValue::SmallInt(v) => *v as i64,
-                                                            CellValue::MedInt(v) => *v as i64,
-                                                            CellValue::BigInt(v) => *v,
-                                                            CellValue::Text(v) => {
-                                                                v.parse::<i64>().unwrap_or(0)
-                                                            }
-                                                            _ => 0,
-                                                        };
-
-                                                        if self.reversed {
-                                                            b_id.cmp(&a_id)
-                                                        } else {
-                                                            a_id.cmp(&b_id)
+                                            if let Some(id_index) = self
+                                                .res_columns
+                                                .iter()
+                                                .position(|c| c == &self.sort_by_col)
+                                            {
+                                                // TODO: simplify this logic
+                                                self.parsed_res_rows.sort_by(|a, b| {
+                                                    let a_key = match &a[id_index] {
+                                                        CellValue::SmallInt(v) => {
+                                                            (0, Some(*v as i64), None::<&String>)
                                                         }
-                                                    });
-                                                }
+                                                        CellValue::MedInt(v) => {
+                                                            (0, Some(*v as i64), None)
+                                                        }
+                                                        CellValue::BigInt(v) => (0, Some(*v), None),
+                                                        CellValue::Text(v) => (1, None, Some(v)),
+                                                        _ => (2, None, None),
+                                                    };
+
+                                                    let b_key = match &b[id_index] {
+                                                        CellValue::SmallInt(v) => {
+                                                            (0, Some(*v as i64), None)
+                                                        }
+                                                        CellValue::MedInt(v) => {
+                                                            (0, Some(*v as i64), None)
+                                                        }
+                                                        CellValue::BigInt(v) => (0, Some(*v), None),
+                                                        CellValue::Text(v) => (1, None, Some(v)),
+                                                        _ => (2, None, None),
+                                                    };
+
+                                                    if self.reversed {
+                                                        b_key.cmp(&a_key)
+                                                    } else {
+                                                        a_key.cmp(&b_key)
+                                                    }
+                                                });
                                             }
                                         }
                                     },
@@ -306,7 +342,7 @@ impl eframe::App for Rosemary {
                             if let Some(row_data) =
                                 self.parsed_res_rows.get(start_index + row.index())
                             {
-                                for cell in row_data {
+                                for cell in row_data.iter().take(self.res_columns.len() - 1) {
                                     row.col(|ui| {
                                         let cell_content = match cell {
                                             CellValue::Text(val) => val.clone(),
