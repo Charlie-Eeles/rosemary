@@ -9,6 +9,7 @@ use tokio::runtime::Runtime;
 
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
+use crate::queries::{get_public_tables, PublicTable};
 
 const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
 
@@ -53,7 +54,7 @@ pub struct Rosemary {
     #[serde(skip)]
     sort_by_col: String,
     #[serde(skip)]
-    tables: Vec<Vec<CellValue>>,
+    tables: Vec<PublicTable>,
     #[serde(skip)]
     got_tables: bool,
 }
@@ -101,45 +102,15 @@ impl Rosemary {
     fn get_tables(&mut self) {
         self.got_tables = true;
         let db_pool = self.db_pool.clone();
-        let query_str = "
-            SELECT
-              table_name, table_type
-            FROM
-              information_schema.tables
-            WHERE
-              table_schema = 'public'
-            ORDER BY
-              table_type, table_name;
-        ";
         let table_rows_ref = &mut self.tables;
 
         let runtime = Runtime::new().expect("Failed to create runtime");
         runtime.block_on(async move {
             if let Some(pool) = db_pool {
-                match sqlx::query(&query_str).fetch_all(&pool).await {
+                match get_public_tables(&pool).await {
                     Ok(rows) => {
                         if !rows.is_empty() {
-                            let mut parsed_values: Vec<Vec<CellValue>> = Vec::new();
-                            for (idx, row) in rows.iter().enumerate() {
-                                let mut row_values: Vec<CellValue> = Vec::new();
-                                for col in row.columns() {
-                                    let col_type = col.type_info().to_string();
-                                    let value = if row
-                                        .try_get_raw(col.ordinal())
-                                        .is_ok_and(|v| v.is_null())
-                                    {
-                                        CellValue::Null
-                                    } else {
-                                        convert_type(&col_type.to_uppercase().as_str(), &col, &row)
-                                    };
-
-                                    row_values.push(value);
-                                }
-                                row_values.push(CellValue::BigInt(idx as i64));
-                                parsed_values.push(row_values);
-                            }
-
-                            *table_rows_ref = parsed_values;
+                            *table_rows_ref = rows;
                         }
                     }
                     Err(e) => {
@@ -238,24 +209,14 @@ impl eframe::App for Rosemary {
                         let text_height = 20.0;
 
                         body.rows(text_height, self.tables.len(), |mut row| {
-                            if let Some(row_data) = self.tables.get(row.index()) {
-                                for cell in row_data.iter().take(2) {
-                                    row.col(|ui| {
-                                        let cell_content = match cell {
-                                            CellValue::Text(val) => val.clone(),
-                                            CellValue::SmallInt(val) => val.to_string(),
-                                            CellValue::MedInt(val) => val.to_string(),
-                                            CellValue::BigInt(val) => val.to_string(),
-                                            CellValue::SmallFloat(val) => val.to_string(),
-                                            CellValue::BigFloat(val) => val.to_string(),
-                                            CellValue::Null => "NULL".to_string(),
-                                            CellValue::Unsupported => "Unsupported".to_string(),
-                                            CellValue::Uuid(val) => val.to_string(),
-                                            CellValue::BigDecimal(val) => val.to_string(),
-                                        };
-                                        ui.label(cell_content);
-                                    });
-                                }
+                            if let Some(table) = self.tables.get(row.index()) {
+                                row.col(|ui| {
+                                    ui.label(table.table_name.as_deref().unwrap_or("NULL"));
+                                });
+
+                                row.col(|ui| {
+                                    ui.label(table.table_type.as_deref().unwrap_or("NULL"));
+                                });
                             }
                         });
                     });
@@ -313,8 +274,14 @@ impl eframe::App for Rosemary {
                             }
                         }
                         Err(e) => {
-                            *col_res_ref = vec![String::from("error_message"), String::from(ROSEMARY_SORT_COL_STR)];
-                            *parsed_row_res_ref = vec![vec![CellValue::Text(format!("{e}")), CellValue::BigInt(0 as i64)]];
+                            *col_res_ref = vec![
+                                String::from("error_message"),
+                                String::from(ROSEMARY_SORT_COL_STR),
+                            ];
+                            *parsed_row_res_ref = vec![vec![
+                                CellValue::Text(format!("{e}")),
+                                CellValue::BigInt(0 as i64),
+                            ]];
                         }
                     }
                 }

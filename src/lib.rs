@@ -2,4 +2,5 @@
 
 mod app;
 pub mod postgres;
+pub mod queries;
 pub use app::Rosemary;
