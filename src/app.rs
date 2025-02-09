@@ -58,6 +58,8 @@ pub struct Rosemary {
     tables: Vec<PublicTable>,
     #[serde(skip)]
     got_tables: bool,
+    #[serde(skip)]
+    table_filter: String,
 }
 
 impl Default for Rosemary {
@@ -73,6 +75,7 @@ impl Default for Rosemary {
             sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
             tables: Vec::new(),
             got_tables: false,
+            table_filter: String::new(),
         }
     }
 }
@@ -194,11 +197,23 @@ impl eframe::App for Rosemary {
 
             ui.separator();
 
+            ui.horizontal(|ui| {
+                ui.label("Filter:");
+                ui.add(egui::TextEdit::singleline(&mut self.table_filter));
+                self.table_filter = self.table_filter.to_lowercase();
+                if ui.button("ｘ").clicked() {
+                    self.table_filter.clear();
+                }
+            });
+
             egui::ScrollArea::vertical()
                 .id_salt("public_table_list")
                 .show(ui, |ui| {
                     for table in &self.tables {
                         let table_name = table.table_name.as_deref().unwrap_or("NULL");
+                        if !self.table_filter.trim().is_empty() && !table_name.to_lowercase().contains(&self.table_filter) {
+                            continue
+                        }
                         let table_type = table.table_type.as_deref().unwrap_or("NULL");
                         let button_label = format!("{table_name} [{table_type}]");
                         let button = egui::Button::new(button_label);
