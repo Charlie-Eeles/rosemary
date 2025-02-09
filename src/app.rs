@@ -1,3 +1,4 @@
+use egui::Layout;
 use egui_extras::{Column as eguiColumn, TableBuilder};
 use sqlformat::QueryParams;
 use sqlformat::{format, FormatOptions};
@@ -162,22 +163,26 @@ impl eframe::App for Rosemary {
                 ui.fonts(|f| f.layout_job(layout_job))
             };
 
-            ui.add(
-                egui::TextEdit::multiline(&mut self.code)
-                    .font(egui::TextStyle::Monospace)
-                    .code_editor()
-                    .desired_rows(40)
-                    .lock_focus(true)
-                    .desired_width(f32::INFINITY)
-                    .layouter(&mut layouter),
-            );
+            egui::ScrollArea::vertical()
+                .id_salt("code_editor")
+                .max_height(550.0)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.code)
+                            .font(egui::TextStyle::Monospace)
+                            .desired_rows(55)
+                            .code_editor()
+                            .desired_width(f32::INFINITY)
+                            .layouter(&mut layouter),
+                    );
+                });
 
             if ctx.input(|i| {
                 i.key_pressed(egui::Key::Enter) && (i.modifiers.command || i.modifiers.ctrl)
             }) {
                 should_execute = true;
             }
-            ui.horizontal(|ui| {
+            ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
                 if ui.add(egui::Button::new("Format")).clicked() {
                     self.code = format_sql(&self.code);
                 }
@@ -187,18 +192,23 @@ impl eframe::App for Rosemary {
                 }
             });
 
-            egui::ScrollArea::both().show(ui, |ui| {
-                for table in &self.tables {
-                    let table_name = table.table_name.as_deref().unwrap_or("NULL");
-                    let table_type = table.table_type.as_deref().unwrap_or("NULL");
-                    let button_label = format!("{table_name} [{table_type}]");
+            ui.separator();
 
-                    if ui.button(button_label).clicked() {
-                        self.code = format!("SELECT * FROM {table_name};");
-                        should_execute = true;
+            egui::ScrollArea::vertical()
+                .id_salt("public_table_list")
+                .show(ui, |ui| {
+                    for table in &self.tables {
+                        let table_name = table.table_name.as_deref().unwrap_or("NULL");
+                        let table_type = table.table_type.as_deref().unwrap_or("NULL");
+                        let button_label = format!("{table_name} [{table_type}]");
+                        let button = egui::Button::new(button_label);
+
+                        if ui.add_sized([ui.available_width(), 0.0], button).clicked() {
+                            self.code = format!("SELECT * FROM {table_name};");
+                            should_execute = true;
+                        }
                     }
-                }
-            });
+                });
         });
 
         if should_execute && !self.code.trim().is_empty() {
