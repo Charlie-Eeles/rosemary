@@ -219,7 +219,7 @@ impl eframe::App for Rosemary {
                         let button = egui::Button::new(button_label);
 
                         if ui.add_sized([ui.available_width(), 0.0], button).clicked() {
-                            self.code = format!("SELECT * FROM {table_name};");
+                            self.code = format_sql(&format!("SELECT * FROM {table_name};"));
                             should_execute = true;
                         }
                     }
