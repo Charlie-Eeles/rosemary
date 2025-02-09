@@ -186,12 +186,12 @@ impl eframe::App for Rosemary {
                 should_execute = true;
             }
             ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
-                if ui.add(egui::Button::new("Format")).clicked() {
-                    self.code = format_sql(&self.code);
-                }
-
                 if ui.add(egui::Button::new("Execute")).clicked() {
                     should_execute = true;
+                }
+
+                if ui.add(egui::Button::new("Format")).clicked() {
+                    self.code = format_sql(&self.code);
                 }
             });
 
