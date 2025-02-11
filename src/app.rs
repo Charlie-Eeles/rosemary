@@ -60,6 +60,13 @@ pub struct Rosemary {
     got_tables: bool,
     #[serde(skip)]
     table_filter: String,
+    #[serde(skip)]
+    connection_modal_open: bool,
+    db_host: String,
+    db_port: String,
+    db_user: String,
+    db_password: String,
+    db_name: String,
 }
 
 impl Default for Rosemary {
@@ -76,6 +83,12 @@ impl Default for Rosemary {
             tables: Vec::new(),
             got_tables: false,
             table_filter: String::new(),
+            connection_modal_open: false,
+            db_host: "localhost".to_string(),
+            db_port: "5432".to_string(),
+            db_user: "".to_string(),
+            db_password: "".to_string(),
+            db_name: "".to_string(),
         }
     }
 }
@@ -83,24 +96,33 @@ impl Default for Rosemary {
 impl Rosemary {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
-            let mut app: Rosemary = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-            app.initialise_db();
+            let app: Rosemary = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
             return app;
         }
 
-        let mut app = Rosemary::default();
-        app.initialise_db();
+        let app = Rosemary::default();
         app
     }
 
-    fn initialise_db(&mut self) {
+    fn connect_to_db(&mut self) {
         let runtime = Runtime::new().expect("Failed to create runtime");
-        let database_url = get_env_var_or_exit("DATABASE_URL");
-        self.db_pool = Some(runtime.block_on(async {
-            sqlx::PgPool::connect(&database_url)
-                .await
-                .expect("Failed to connect to db")
-        }))
+        let database_url = format!(
+            "postgresql://{}:{}@{}:{}/{}",
+            self.db_user, self.db_password, self.db_host, self.db_port, self.db_name
+        );
+
+        let connection_result =
+            runtime.block_on(async { sqlx::PgPool::connect(&database_url).await });
+
+        match connection_result {
+            Ok(pool) => {
+                self.db_pool = Some(pool);
+                self.connection_modal_open = false;
+            }
+            Err(e) => {
+                eprintln!("Failed to connect: {}", e);
+            }
+        }
     }
 
     fn get_tables(&mut self) {
@@ -132,7 +154,11 @@ impl eframe::App for Rosemary {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if !self.got_tables {
+        if !self.db_pool.is_some() {
+            self.connection_modal_open = true;
+        }
+
+        if self.db_pool.is_some() && !self.got_tables {
             self.get_tables();
         }
 
@@ -143,6 +169,9 @@ impl eframe::App for Rosemary {
                 ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    if ui.button("Connections").clicked() {
+                        self.connection_modal_open = true;
                     }
                 });
             });
@@ -184,6 +213,7 @@ impl eframe::App for Rosemary {
                 i.key_pressed(egui::Key::Enter) && (i.modifiers.command || i.modifiers.ctrl)
             }) {
                 should_execute = true;
+                println!("BLAH");
             }
             ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
                 if ui.add(egui::Button::new("Execute")).clicked() {
@@ -211,8 +241,10 @@ impl eframe::App for Rosemary {
                 .show(ui, |ui| {
                     for table in &self.tables {
                         let table_name = table.table_name.as_deref().unwrap_or("NULL");
-                        if !self.table_filter.trim().is_empty() && !table_name.to_lowercase().contains(&self.table_filter) {
-                            continue
+                        if !self.table_filter.trim().is_empty()
+                            && !table_name.to_lowercase().contains(&self.table_filter)
+                        {
+                            continue;
                         }
                         let table_type = table.table_type.as_deref().unwrap_or("NULL");
                         let button_label = format!("{table_name} [{table_type}]");
@@ -450,5 +482,32 @@ impl eframe::App for Rosemary {
                     });
             });
         });
+        let mut connect_to_db = false;
+
+        if self.connection_modal_open {
+            egui::Window::new("Connections")
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut self.connection_modal_open)
+                .show(ctx, |ui| {
+                    ui.label("Database Host:");
+                    ui.text_edit_singleline(&mut self.db_host);
+                    ui.label("Port:");
+                    ui.text_edit_singleline(&mut self.db_port);
+                    ui.label("Username:");
+                    ui.text_edit_singleline(&mut self.db_user);
+                    ui.label("Password:");
+                    ui.text_edit_singleline(&mut self.db_password);
+                    ui.label("Database Name:");
+                    ui.text_edit_singleline(&mut self.db_name);
+
+                    if ui.button("Connect").clicked() {
+                        connect_to_db = true;
+                    }
+                });
+        }
+        if connect_to_db {
+            self.connect_to_db();
+        }
     }
 }
