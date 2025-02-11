@@ -74,7 +74,7 @@ impl Default for Rosemary {
         Self {
             code: "".to_owned(),
             db_pool: None,
-            res_columns: vec![String::from("")],
+            res_columns: vec![String::new()],
             parsed_res_rows: Vec::new(),
             current_page: 0,
             rows_per_page: 1000,
@@ -118,6 +118,13 @@ impl Rosemary {
             Ok(pool) => {
                 self.db_pool = Some(pool);
                 self.connection_modal_open = false;
+                self.tables = Vec::new();
+                self.got_tables = false;
+                self.res_columns = vec![String::new()];
+                self.parsed_res_rows = Vec::new();
+                self.current_page = 0;
+                self.reversed = true;
+                self.sort_by_col = String::from(ROSEMARY_SORT_COL_STR) 
             }
             Err(e) => {
                 eprintln!("Failed to connect: {}", e);
