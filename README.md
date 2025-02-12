@@ -6,7 +6,6 @@ It is specifically designed for Postgres and there are no short term plans to su
 
 ## How to run
 As it's in early development there are currently no prebuilt binaries.\
-To connect to a DB you need to set a `DATABASE_URL`environment variable, I have plans on managing connections in the future.\
 If you'd like to run Rosemary you can do so through cargo with `cargo run` in the project root.\
 Or you can build/run your own binary from the project root with `cargo build --release` and `./target/release/rosemary`
 
