@@ -39,13 +39,27 @@ fn format_sql(sql: &str) -> String {
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 #[serde(default)]
 pub struct Rosemary {
+    // Connection management
+    // Persist on reload
+    db_host: String,
+    db_port: String,
+    db_user: String,
+    db_password: String,
+    db_name: String,
+    // Don't persist on reload
+    #[serde(skip)]
+    db_pool: Option<Pool<Postgres>>,
+    #[serde(skip)]
+    connection_modal_open: bool,
+
+    // Code editor
     code: String,
+
+    // Query result panel
     #[serde(skip)]
     current_page: usize,
     #[serde(skip)]
     rows_per_page: usize,
-    #[serde(skip)]
-    db_pool: Option<Pool<Postgres>>,
     #[serde(skip)]
     res_columns: Vec<String>,
     #[serde(skip)]
@@ -54,19 +68,14 @@ pub struct Rosemary {
     reversed: bool,
     #[serde(skip)]
     sort_by_col: String,
+
+    // Table list
     #[serde(skip)]
     tables: Vec<PublicTable>,
     #[serde(skip)]
-    got_tables: bool,
+    should_fetch_table_list: bool,
     #[serde(skip)]
     table_filter: String,
-    #[serde(skip)]
-    connection_modal_open: bool,
-    db_host: String,
-    db_port: String,
-    db_user: String,
-    db_password: String,
-    db_name: String,
 }
 
 impl Default for Rosemary {
@@ -81,7 +90,7 @@ impl Default for Rosemary {
             reversed: true,
             sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
             tables: Vec::new(),
-            got_tables: false,
+            should_fetch_table_list: false,
             table_filter: String::new(),
             connection_modal_open: false,
             db_host: "localhost".to_string(),
@@ -104,6 +113,19 @@ impl Rosemary {
         app
     }
 
+    fn reset_table_data(&mut self) {
+        self.tables = Vec::new();
+        self.should_fetch_table_list = true;
+    }
+
+    fn reset_query_result_data(&mut self) {
+        self.res_columns = vec![String::new()];
+        self.parsed_res_rows = Vec::new();
+        self.current_page = 0;
+        self.reversed = true;
+        self.sort_by_col = String::from(ROSEMARY_SORT_COL_STR)
+    }
+
     fn connect_to_db(&mut self) {
         let runtime = Runtime::new().expect("Failed to create runtime");
         let database_url = format!(
@@ -118,13 +140,8 @@ impl Rosemary {
             Ok(pool) => {
                 self.db_pool = Some(pool);
                 self.connection_modal_open = false;
-                self.tables = Vec::new();
-                self.got_tables = false;
-                self.res_columns = vec![String::new()];
-                self.parsed_res_rows = Vec::new();
-                self.current_page = 0;
-                self.reversed = true;
-                self.sort_by_col = String::from(ROSEMARY_SORT_COL_STR) 
+                self.reset_table_data();
+                self.reset_query_result_data();
             }
             Err(e) => {
                 eprintln!("Failed to connect: {}", e);
@@ -133,7 +150,7 @@ impl Rosemary {
     }
 
     fn get_tables(&mut self) {
-        self.got_tables = true;
+        self.should_fetch_table_list = false;
         let db_pool = self.db_pool.clone();
         let table_rows_ref = &mut self.tables;
 
@@ -165,7 +182,7 @@ impl eframe::App for Rosemary {
             self.connection_modal_open = true;
         }
 
-        if self.db_pool.is_some() && !self.got_tables {
+        if self.db_pool.is_some() && self.should_fetch_table_list {
             self.get_tables();
         }
 
@@ -266,6 +283,7 @@ impl eframe::App for Rosemary {
         });
 
         if should_execute && !self.code.trim().is_empty() {
+            self.reset_query_result_data();
             let db_pool = self.db_pool.clone();
             let query_str = self.code.clone();
             let col_res_ref = &mut self.res_columns;
