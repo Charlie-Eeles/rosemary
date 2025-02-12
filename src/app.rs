@@ -14,16 +14,6 @@ use crate::queries::{get_public_tables, PublicTable};
 
 const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
 
-fn get_env_var_or_exit(name: &str) -> String {
-    match std::env::var(name) {
-        Ok(val) => val,
-        Err(_) => {
-            eprintln!("Required variable not set in environment: {name}");
-            std::process::exit(1);
-        }
-    }
-}
-
 fn format_sql(sql: &str) -> String {
     format(
         sql,
