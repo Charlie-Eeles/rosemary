@@ -1,9 +1,9 @@
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
 use crate::queries::{get_public_tables, PublicTable};
+use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
-use egui_extras::{Column as eguiColumn, TableBuilder};
 use sqlformat::QueryParams;
 use sqlformat::{format, FormatOptions};
 use sqlx::Column;
@@ -271,28 +271,7 @@ impl eframe::App for Rosemary {
             show_results_table_panel(ui, self);
         });
         egui::TopBottomPanel::bottom("pagination_panel").show(ctx, |ui| {
-            if self.parsed_res_rows.len() > 1000 {
-                ui.horizontal(|ui| {
-                    if ui.button("Previous").clicked() {
-                        if self.current_page > 0 {
-                            self.current_page -= 1;
-                        }
-                    }
-
-                    ui.label(format!(
-                        "Page {}/{}",
-                        self.current_page + 1,
-                        (self.parsed_res_rows.len() + self.rows_per_page - 1) / self.rows_per_page
-                    ));
-
-                    if ui.button("Next").clicked() {
-                        if (self.current_page + 1) * self.rows_per_page < self.parsed_res_rows.len()
-                        {
-                            self.current_page += 1;
-                        }
-                    }
-                });
-            }
+            show_pagination_panel(ui, self);
         });
         let mut connect_to_db = false;
 
