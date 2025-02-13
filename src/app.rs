@@ -1,7 +1,7 @@
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
 use crate::queries::{get_public_tables, PublicTable};
-use egui::Layout;
+use crate::ui::tables_panel::show_tables_panel;
 use egui_extras::{Column as eguiColumn, TableBuilder};
 use sqlformat::QueryParams;
 use sqlformat::{format, FormatOptions};
@@ -196,38 +196,8 @@ impl eframe::App for Rosemary {
 
         egui::SidePanel::left("editor").show(ctx, |ui| {
             show_editor_panel(ui, self, &mut should_execute);
-
             ui.separator();
-
-            ui.horizontal(|ui| {
-                ui.label("Filter:");
-                ui.add(egui::TextEdit::singleline(&mut self.table_filter));
-                self.table_filter = self.table_filter.to_lowercase();
-                if ui.button("ｘ").clicked() {
-                    self.table_filter.clear();
-                }
-            });
-
-            egui::ScrollArea::vertical()
-                .id_salt("public_table_list")
-                .show(ui, |ui| {
-                    for table in &self.tables {
-                        let table_name = table.table_name.as_deref().unwrap_or("NULL");
-                        if !self.table_filter.trim().is_empty()
-                            && !table_name.to_lowercase().contains(&self.table_filter)
-                        {
-                            continue;
-                        }
-                        let table_type = table.table_type.as_deref().unwrap_or("NULL");
-                        let button_label = format!("{table_name} [{table_type}]");
-                        let button = egui::Button::new(button_label);
-
-                        if ui.add_sized([ui.available_width(), 0.0], button).clicked() {
-                            self.code = format_sql(&format!("SELECT * FROM {table_name};"));
-                            should_execute = true;
-                        }
-                    }
-                });
+            show_tables_panel(ui, self, &mut should_execute);
         });
 
         if should_execute && !self.code.trim().is_empty() {
