@@ -1,3 +1,6 @@
+use crate::postgres::convert_type;
+use crate::postgres::CellValue;
+use crate::queries::{get_public_tables, PublicTable};
 use egui::Layout;
 use egui_extras::{Column as eguiColumn, TableBuilder};
 use sqlformat::QueryParams;
@@ -7,10 +10,7 @@ use sqlx::Row;
 use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
-
-use crate::postgres::convert_type;
-use crate::postgres::CellValue;
-use crate::queries::{get_public_tables, PublicTable};
+use crate::ui::connections_panel::show_connections_panel;
 
 const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
 
@@ -31,41 +31,41 @@ fn format_sql(sql: &str) -> String {
 pub struct Rosemary {
     // Connection management
     // Persist on reload
-    db_host: String,
-    db_port: String,
-    db_user: String,
-    db_password: String,
-    db_name: String,
+    pub db_host: String,
+    pub db_port: String,
+    pub db_user: String,
+    pub db_password: String,
+    pub db_name: String,
     // Don't persist on reload
     #[serde(skip)]
-    db_pool: Option<Pool<Postgres>>,
+    pub db_pool: Option<Pool<Postgres>>,
     #[serde(skip)]
-    connection_modal_open: bool,
+    pub connection_modal_open: bool,
 
     // Code editor
-    code: String,
+    pub code: String,
 
     // Query result panel
     #[serde(skip)]
-    current_page: usize,
+    pub current_page: usize,
     #[serde(skip)]
-    rows_per_page: usize,
+    pub rows_per_page: usize,
     #[serde(skip)]
-    res_columns: Vec<String>,
+    pub res_columns: Vec<String>,
     #[serde(skip)]
-    parsed_res_rows: Vec<Vec<CellValue>>,
+    pub parsed_res_rows: Vec<Vec<CellValue>>,
     #[serde(skip)]
-    reversed: bool,
+    pub reversed: bool,
     #[serde(skip)]
-    sort_by_col: String,
+    pub sort_by_col: String,
 
     // Table list
     #[serde(skip)]
-    tables: Vec<PublicTable>,
+    pub tables: Vec<PublicTable>,
     #[serde(skip)]
-    should_fetch_table_list: bool,
+    pub should_fetch_table_list: bool,
     #[serde(skip)]
-    table_filter: String,
+    pub table_filter: String,
 }
 
 impl Default for Rosemary {
@@ -500,27 +500,17 @@ impl eframe::App for Rosemary {
         let mut connect_to_db = false;
 
         if self.connection_modal_open {
+            let mut connections_modal_open =self.connection_modal_open;
             egui::Window::new("Connections")
                 .collapsible(false)
                 .resizable(false)
-                .open(&mut self.connection_modal_open)
+                .open(&mut connections_modal_open)
                 .show(ctx, |ui| {
-                    ui.label("Database Host:");
-                    ui.text_edit_singleline(&mut self.db_host);
-                    ui.label("Port:");
-                    ui.text_edit_singleline(&mut self.db_port);
-                    ui.label("Username:");
-                    ui.text_edit_singleline(&mut self.db_user);
-                    ui.label("Password:");
-                    ui.text_edit_singleline(&mut self.db_password);
-                    ui.label("Database Name:");
-                    ui.text_edit_singleline(&mut self.db_name);
-
-                    if ui.button("Connect").clicked() {
-                        connect_to_db = true;
-                    }
+                    connect_to_db = show_connections_panel(ui, self);
                 });
+            self.connection_modal_open = connections_modal_open;
         }
+
         if connect_to_db {
             self.connect_to_db();
         }
