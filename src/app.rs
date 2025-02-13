@@ -11,10 +11,11 @@ use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
 use crate::ui::connections_panel::show_connections_panel;
+use crate::ui::editor_panel::show_editor_panel;
 
 const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
 
-fn format_sql(sql: &str) -> String {
+pub fn format_sql(sql: &str) -> String {
     format(
         sql,
         &QueryParams::None,
@@ -194,50 +195,7 @@ impl eframe::App for Rosemary {
         let mut should_execute = false;
 
         egui::SidePanel::left("editor").show(ctx, |ui| {
-            let theme =
-                egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
-
-            let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
-                let mut layout_job = egui_extras::syntax_highlighting::highlight(
-                    ui.ctx(),
-                    ui.style(),
-                    &theme,
-                    string,
-                    "sql".into(),
-                );
-                layout_job.wrap.max_width = wrap_width;
-                ui.fonts(|f| f.layout_job(layout_job))
-            };
-
-            egui::ScrollArea::vertical()
-                .id_salt("code_editor")
-                .max_height(550.0)
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.code)
-                            .font(egui::TextStyle::Monospace)
-                            .desired_rows(55)
-                            .code_editor()
-                            .desired_width(f32::INFINITY)
-                            .layouter(&mut layouter),
-                    );
-                });
-
-            if ctx.input(|i| {
-                i.key_pressed(egui::Key::Enter) && (i.modifiers.command || i.modifiers.ctrl)
-            }) {
-                should_execute = true;
-                println!("BLAH");
-            }
-            ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
-                if ui.add(egui::Button::new("Execute")).clicked() {
-                    should_execute = true;
-                }
-
-                if ui.add(egui::Button::new("Format")).clicked() {
-                    self.code = format_sql(&self.code);
-                }
-            });
+            show_editor_panel(ui, self, &mut should_execute);
 
             ui.separator();
 
