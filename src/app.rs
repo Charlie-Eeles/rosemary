@@ -1,6 +1,8 @@
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
 use crate::queries::{get_public_tables, PublicTable};
+use crate::ui::connections_panel::show_connections_panel;
+use crate::ui::editor_panel::show_editor_panel;
 use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
@@ -11,8 +13,6 @@ use sqlx::Row;
 use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
-use crate::ui::connections_panel::show_connections_panel;
-use crate::ui::editor_panel::show_editor_panel;
 
 pub const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
 
@@ -46,6 +46,7 @@ pub struct Rosemary {
 
     // Code editor
     pub code: String,
+    pub query_to_execute: u8,
 
     // Query result panel
     #[serde(skip)]
@@ -74,6 +75,7 @@ impl Default for Rosemary {
     fn default() -> Self {
         Self {
             code: "".to_owned(),
+            query_to_execute: 0,
             db_pool: None,
             res_columns: vec![String::new()],
             parsed_res_rows: Vec::new(),
@@ -192,8 +194,32 @@ impl eframe::App for Rosemary {
                 });
             });
         });
-
         let mut should_execute = false;
+
+        for key in 0..=9 {
+            let num_key = match key {
+                0 => egui::Key::Num0,
+                1 => egui::Key::Num1,
+                2 => egui::Key::Num2,
+                3 => egui::Key::Num3,
+                4 => egui::Key::Num4,
+                5 => egui::Key::Num5,
+                6 => egui::Key::Num6,
+                7 => egui::Key::Num7,
+                8 => egui::Key::Num8,
+                9 => egui::Key::Num9,
+                _ => unreachable!(),
+            };
+
+            if ctx.input(|i| i.key_pressed(num_key) && (i.modifiers.command || i.modifiers.ctrl)) {
+                self.query_to_execute = key;
+            }
+        }
+        if ctx
+            .input(|i| i.key_pressed(egui::Key::Enter) && (i.modifiers.command || i.modifiers.ctrl))
+        {
+            should_execute = true;
+        }
 
         egui::SidePanel::left("editor").show(ctx, |ui| {
             show_editor_panel(ui, self, &mut should_execute);
@@ -202,9 +228,28 @@ impl eframe::App for Rosemary {
         });
 
         if should_execute && !self.code.trim().is_empty() {
+            let query_vec: Vec<&str> = self
+                .code
+                .split(';')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            let idx = self.query_to_execute.saturating_sub(1);
+            let query_str = if self.query_to_execute == 0 {
+                query_vec
+                    .last()
+                    .map_or_else(String::new, |s| String::from(*s))
+            } else if let Some(index) = query_vec.get(idx as usize) {
+                String::from(*index)
+            } else {
+                query_vec
+                    .last()
+                    .map_or_else(String::new, |s| String::from(*s))
+            };
+
             self.reset_query_result_data();
             let db_pool = self.db_pool.clone();
-            let query_str = self.code.clone();
             let col_res_ref = &mut self.res_columns;
             let parsed_row_res_ref = &mut self.parsed_res_rows;
             let ctx_ref = ctx.clone();
@@ -276,7 +321,7 @@ impl eframe::App for Rosemary {
         let mut connect_to_db = false;
 
         if self.connection_modal_open {
-            let mut connections_modal_open =self.connection_modal_open;
+            let mut connections_modal_open = self.connection_modal_open;
             egui::Window::new("Connections")
                 .collapsible(false)
                 .resizable(false)
