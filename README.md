@@ -10,6 +10,9 @@ To compile, you'll need to set a `DATABASE_URL` environment variable that points
 If you'd like to run Rosemary you can do so through cargo with `cargo run` in the project root.\
 Or you can build/run your own binary from the project root with `cargo build --release` and `./target/release/rosemary`
 
+Rosemary will try to execute the last query in the editor, you can change what query to execute using `ctrl/cmd+{1-9}` and set it to be the default (last) with `ctrl/cmd+0`.\
+Queries are logically split using semicolons.
+
 ## Special thanks
 I'm very grateful for these open source crates used in this project.\
 [SQLx](https://github.com/launchbadge/sqlx)\
