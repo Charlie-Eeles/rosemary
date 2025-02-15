@@ -74,6 +74,7 @@ pub struct Rosemary {
     #[serde(skip)]
     pub table_filter: String,
     pub show_table_list: bool,
+    pub table_queries_are_additive: bool,
 
     // Query performance panel
     #[serde(skip)]
@@ -106,6 +107,7 @@ impl Default for Rosemary {
             db_name: "".to_string(),
             query_execution_time_ms: 0,
             query_execution_time_sec: 0.0,
+            table_queries_are_additive: true
         }
     }
 }

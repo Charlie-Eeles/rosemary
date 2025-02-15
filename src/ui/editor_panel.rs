@@ -51,5 +51,7 @@ pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
                 app.show_table_list = true;
             }
         }
+
+        ui.checkbox(&mut app.table_queries_are_additive, "Additive queries");
     });
 }
