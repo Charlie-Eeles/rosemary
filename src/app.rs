@@ -69,6 +69,7 @@ pub struct Rosemary {
     pub should_fetch_table_list: bool,
     #[serde(skip)]
     pub table_filter: String,
+    pub show_table_list: bool,
 }
 
 impl Default for Rosemary {
@@ -86,6 +87,7 @@ impl Default for Rosemary {
             tables: Vec::new(),
             should_fetch_table_list: false,
             table_filter: String::new(),
+            show_table_list: true,
             connection_modal_open: false,
             db_host: "localhost".to_string(),
             db_port: "5432".to_string(),
@@ -224,7 +226,9 @@ impl eframe::App for Rosemary {
         egui::SidePanel::left("editor").show(ctx, |ui| {
             show_editor_panel(ui, self, &mut should_execute);
             ui.separator();
-            show_tables_panel(ui, self, &mut should_execute);
+            if self.show_table_list {
+                show_tables_panel(ui, self, &mut should_execute);
+            }
         });
 
         if should_execute && !self.code.trim().is_empty() {

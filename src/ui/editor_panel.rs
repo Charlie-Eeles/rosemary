@@ -1,6 +1,6 @@
-use egui::{Ui, Layout, TextEdit, TextStyle};
 use crate::app::format_sql;
 use crate::app::Rosemary;
+use egui::{Layout, TextEdit, TextStyle, Ui};
 
 pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut bool) {
     let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
@@ -17,14 +17,16 @@ pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
         ui.fonts(|f| f.layout_job(layout_job))
     };
 
+    let available_height = ui.ctx().available_rect().height();
+    let max_height = if app.show_table_list { available_height * 0.65 } else { available_height * 0.95 };
     egui::ScrollArea::vertical()
         .id_salt("code_editor")
-        .max_height(550.0)
+        .max_height(max_height)
         .show(ui, |ui| {
             ui.add(
                 TextEdit::multiline(&mut app.code)
                     .font(TextStyle::Monospace)
-                    .desired_rows(55)
+                    .desired_rows(60)
                     .code_editor()
                     .desired_width(f32::INFINITY)
                     .layouter(&mut layouter),
@@ -39,7 +41,15 @@ pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
         if ui.add(egui::Button::new("Format")).clicked() {
             app.code = format_sql(&app.code);
         }
+
+        if app.show_table_list {
+            if ui.add(egui::Button::new("⬇  Hide tables")).clicked() {
+                app.show_table_list = false;
+            }
+        } else {
+            if ui.add(egui::Button::new("⬆  Show tables")).clicked() {
+                app.show_table_list = true;
+            }
+        }
     });
-
-
 }
