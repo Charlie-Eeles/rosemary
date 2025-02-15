@@ -1,9 +1,12 @@
+use std::time::Instant;
+
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
 use crate::queries::{get_public_tables, PublicTable};
 use crate::ui::connections_panel::show_connections_panel;
 use crate::ui::editor_panel::show_editor_panel;
 use crate::ui::pagination_panel::show_pagination_panel;
+use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
 use sqlformat::QueryParams;
@@ -70,6 +73,12 @@ pub struct Rosemary {
     #[serde(skip)]
     pub table_filter: String,
     pub show_table_list: bool,
+
+    // Query performance panel
+    #[serde(skip)]
+    pub query_execution_time_ms: u128,
+    #[serde(skip)]
+    pub query_execution_time_sec: f64,
 }
 
 impl Default for Rosemary {
@@ -94,6 +103,8 @@ impl Default for Rosemary {
             db_user: "".to_string(),
             db_password: "".to_string(),
             db_name: "".to_string(),
+            query_execution_time_ms: 0,
+            query_execution_time_sec: 0.0,
         }
     }
 }
@@ -256,13 +267,20 @@ impl eframe::App for Rosemary {
             let db_pool = self.db_pool.clone();
             let col_res_ref = &mut self.res_columns;
             let parsed_row_res_ref = &mut self.parsed_res_rows;
+            let query_execution_time_ms_ref = &mut self.query_execution_time_ms;
+            let query_execution_time_sec_ref = &mut self.query_execution_time_sec;
             let ctx_ref = ctx.clone();
 
             let runtime = Runtime::new().expect("Failed to create runtime");
             runtime.block_on(async move {
                 if let Some(pool) = db_pool {
+                    let query_start_time = Instant::now();
                     match sqlx::query(&query_str).fetch_all(&pool).await {
                         Ok(rows) => {
+                            let elapsed_time = query_start_time.elapsed();
+                            *query_execution_time_ms_ref = elapsed_time.as_millis();
+                            *query_execution_time_sec_ref =
+                                (elapsed_time.as_secs_f64() * 100.0).round() / 100.0;
                             if !rows.is_empty() {
                                 let mut col_names: Vec<String> = rows[0]
                                     .columns()
@@ -320,6 +338,7 @@ impl eframe::App for Rosemary {
             show_results_table_panel(ui, self);
         });
         egui::TopBottomPanel::bottom("pagination_panel").show(ctx, |ui| {
+            show_query_metrics_panel(ui, self);
             show_pagination_panel(ui, self);
         });
         let mut connect_to_db = false;
