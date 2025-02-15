@@ -27,7 +27,9 @@ pub fn show_tables_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
                 let button = egui::Button::new(button_label);
 
                 if ui.add_sized([ui.available_width(), 0.0], button).clicked() {
-                    app.code = format_sql(&format!("SELECT * FROM {table_name};"));
+                    let code = app.code.clone() + &format!("SELECT * FROM {table_name};");
+                    
+                    app.code = format_sql(&code);
                     *should_execute = true;
                 }
             }
