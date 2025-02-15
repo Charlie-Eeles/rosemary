@@ -9,11 +9,12 @@ use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
+use rayon::prelude::*;
 use sqlformat::QueryParams;
 use sqlformat::{format, FormatOptions};
+use sqlx::postgres::PgRow;
 use sqlx::Column;
 use sqlx::Row;
-use sqlx::ValueRef;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
 
@@ -269,10 +270,13 @@ impl eframe::App for Rosemary {
             let parsed_row_res_ref = &mut self.parsed_res_rows;
             let query_execution_time_ms_ref = &mut self.query_execution_time_ms;
             let query_execution_time_sec_ref = &mut self.query_execution_time_sec;
-            let ctx_ref = ctx.clone();
 
             let runtime = Runtime::new().expect("Failed to create runtime");
-            runtime.block_on(async move {
+
+            let (res_rows, error_message) = runtime.block_on(async {
+                let mut res_rows: Vec<PgRow> = Vec::new();
+                let mut error_message: String = String::new();
+
                 if let Some(pool) = db_pool {
                     let query_start_time = Instant::now();
                     match sqlx::query(&query_str).fetch_all(&pool).await {
@@ -281,57 +285,50 @@ impl eframe::App for Rosemary {
                             *query_execution_time_ms_ref = elapsed_time.as_millis();
                             *query_execution_time_sec_ref =
                                 (elapsed_time.as_secs_f64() * 100.0).round() / 100.0;
-                            if !rows.is_empty() {
-                                let mut col_names: Vec<String> = rows[0]
-                                    .columns()
-                                    .iter()
-                                    .map(|col| String::from(col.name()))
-                                    .collect();
-                                col_names
-                                    .insert(col_names.len(), String::from(ROSEMARY_SORT_COL_STR));
-                                *col_res_ref = col_names;
-
-                                let mut parsed_values: Vec<Vec<CellValue>> = Vec::new();
-                                for (idx, row) in rows.iter().enumerate() {
-                                    let mut row_values: Vec<CellValue> = Vec::new();
-                                    for col in row.columns() {
-                                        let col_type = col.type_info().to_string();
-                                        let value = if row
-                                            .try_get_raw(col.ordinal())
-                                            .is_ok_and(|v| v.is_null())
-                                        {
-                                            CellValue::Null
-                                        } else {
-                                            convert_type(
-                                                &col_type.to_uppercase().as_str(),
-                                                &col,
-                                                &row,
-                                            )
-                                        };
-
-                                        row_values.push(value);
-                                    }
-                                    row_values.push(CellValue::BigInt(idx as i64));
-                                    parsed_values.push(row_values);
-                                }
-
-                                *parsed_row_res_ref = parsed_values;
-                                ctx_ref.request_repaint();
-                            }
+                            res_rows = rows;
                         }
                         Err(e) => {
-                            *col_res_ref = vec![
-                                String::from("error_message"),
-                                String::from(ROSEMARY_SORT_COL_STR),
-                            ];
-                            *parsed_row_res_ref = vec![vec![
-                                CellValue::Text(format!("{e}")),
-                                CellValue::BigInt(0 as i64),
-                            ]];
+                            error_message = format!("{e}");
                         }
                     }
                 }
+                (res_rows, error_message)
             });
+
+            if !error_message.is_empty() {
+                *col_res_ref = vec![
+                    String::from("error_message"),
+                    String::from(ROSEMARY_SORT_COL_STR),
+                ];
+                *parsed_row_res_ref = vec![vec![
+                    CellValue::Text(error_message),
+                    CellValue::BigInt(0 as i64),
+                ]];
+            } else if !res_rows.is_empty() {
+                let mut col_names: Vec<String> = res_rows[0]
+                    .columns()
+                    .iter()
+                    .map(|col| String::from(col.name()))
+                    .collect();
+                col_names.insert(col_names.len(), String::from(ROSEMARY_SORT_COL_STR));
+                self.res_columns = col_names;
+
+                self.parsed_res_rows = res_rows
+                    .par_iter()
+                    .enumerate()
+                    .map(|(idx, row)| {
+                        let mut row_values: Vec<CellValue> = row
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                convert_type(col.type_info().to_string().to_uppercase().as_str(), col, &row)
+                            })
+                            .collect();
+                        row_values.push(CellValue::BigInt(idx as i64));
+                        row_values
+                    })
+                    .collect();
+            }
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
