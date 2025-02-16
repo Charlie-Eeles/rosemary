@@ -8,6 +8,7 @@ use crate::ui::editor_panel::show_editor_panel;
 use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
+use crate::ui::secondary_results_table_panel::show_secondary_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
 use rayon::prelude::*;
 use sqlformat::QueryParams;
@@ -68,6 +69,20 @@ pub struct Rosemary {
     #[serde(skip)]
     pub split_results_table: bool,
 
+    // Secondary query result panel
+    #[serde(skip)]
+    pub secondary_current_page: usize,
+    #[serde(skip)]
+    pub secondary_rows_per_page: usize,
+    #[serde(skip)]
+    pub secondary_res_columns: Vec<String>,
+    #[serde(skip)]
+    pub secondary_parsed_res_rows: Vec<Vec<CellValue>>,
+    #[serde(skip)]
+    pub secondary_reversed: bool,
+    #[serde(skip)]
+    pub secondary_sort_by_col: String,
+
     // Table list
     #[serde(skip)]
     pub tables: Vec<PublicTable>,
@@ -97,6 +112,12 @@ impl Default for Rosemary {
             rows_per_page: 1000,
             reversed: true,
             sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+            secondary_res_columns: vec![String::new()],
+            secondary_parsed_res_rows: Vec::new(),
+            secondary_current_page: 0,
+            secondary_rows_per_page: 1000,
+            secondary_reversed: true,
+            secondary_sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
             tables: Vec::new(),
             should_fetch_table_list: false,
             table_filter: String::new(),
@@ -139,6 +160,14 @@ impl Rosemary {
         self.sort_by_col = String::from(ROSEMARY_SORT_COL_STR)
     }
 
+    fn reset_secondary_query_result_data(&mut self) {
+        self.secondary_res_columns = vec![String::new()];
+        self.secondary_parsed_res_rows = Vec::new();
+        self.secondary_current_page = 0;
+        self.secondary_reversed = true;
+        self.secondary_sort_by_col = String::from(ROSEMARY_SORT_COL_STR)
+    }
+
     fn connect_to_db(&mut self) {
         let runtime = Runtime::new().expect("Failed to create runtime");
         let database_url = format!(
@@ -155,6 +184,7 @@ impl Rosemary {
                 self.connection_modal_open = false;
                 self.reset_table_data();
                 self.reset_query_result_data();
+                self.reset_secondary_query_result_data();
             }
             Err(e) => {
                 eprintln!("Failed to connect: {}", e);
@@ -214,6 +244,7 @@ impl eframe::App for Rosemary {
             });
         });
         let mut should_execute = false;
+        let mut should_execute_secondary = false;
 
         for key in 0..=9 {
             let num_key = match key {
@@ -234,10 +265,15 @@ impl eframe::App for Rosemary {
                 self.query_to_execute = key;
             }
         }
+
         if ctx
             .input(|i| i.key_pressed(egui::Key::Enter) && (i.modifiers.command || i.modifiers.ctrl))
         {
-            should_execute = true;
+            if ctx.input(|i| i.modifiers.shift) {
+                should_execute_secondary = true;
+            } else {
+                should_execute = true;
+            }
         }
 
         egui::SidePanel::left("editor").show(ctx, |ui| {
@@ -248,7 +284,7 @@ impl eframe::App for Rosemary {
             }
         });
 
-        if should_execute && !self.code.trim().is_empty() {
+        if (should_execute || should_execute_secondary) && !self.code.trim().is_empty() {
             let query_vec: Vec<&str> = self
                 .code
                 .split(';')
@@ -269,10 +305,22 @@ impl eframe::App for Rosemary {
                     .map_or_else(String::new, |s| String::from(*s))
             };
 
-            self.reset_query_result_data();
+            if should_execute {
+                self.reset_query_result_data();
+            } else {
+                self.reset_secondary_query_result_data();
+            }
             let db_pool = self.db_pool.clone();
-            let col_res_ref = &mut self.res_columns;
-            let parsed_row_res_ref = &mut self.parsed_res_rows;
+            let col_res_ref = if should_execute {
+                &mut self.res_columns
+            } else {
+                &mut self.secondary_res_columns
+            };
+            let parsed_row_res_ref = if should_execute {
+                &mut self.parsed_res_rows
+            } else {
+                &mut self.secondary_parsed_res_rows
+            };
             let query_execution_time_ms_ref = &mut self.query_execution_time_ms;
             let query_execution_time_sec_ref = &mut self.query_execution_time_sec;
 
@@ -316,9 +364,9 @@ impl eframe::App for Rosemary {
                     .map(|col| String::from(col.name()))
                     .collect();
                 col_names.insert(col_names.len(), String::from(ROSEMARY_SORT_COL_STR));
-                self.res_columns = col_names;
+                *col_res_ref = col_names;
 
-                self.parsed_res_rows = res_rows
+                *parsed_row_res_ref = res_rows
                     .par_iter()
                     .enumerate()
                     .map(|(idx, row)| {
@@ -359,7 +407,7 @@ impl eframe::App for Rosemary {
                 ui.push_id("bottom_table", |ui| {
                     ui.set_min_height(max_height);
                     ui.set_max_height(max_height);
-                    show_results_table_panel(ui, self);
+                    show_secondary_results_table_panel(ui, self);
                 });
             }
         });

@@ -4,3 +4,4 @@ pub mod results_table_panel;
 pub mod tables_panel;
 pub mod pagination_panel;
 pub mod query_metrics_panel;
+pub mod secondary_results_table_panel;
