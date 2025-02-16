@@ -1,7 +1,7 @@
-use crate::app::Rosemary;
+use crate::app::{QueryResultsPanel, Rosemary};
 use egui::Ui;
 
-pub fn show_pagination_panel(ui: &mut Ui, app: &mut Rosemary) {
+pub fn show_pagination_panel(ui: &mut Ui, app: &mut QueryResultsPanel) {
     if app.parsed_res_rows.len() > 1000 {
         ui.horizontal(|ui| {
             if ui.button("Previous").clicked() {

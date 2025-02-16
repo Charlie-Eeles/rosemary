@@ -1,4 +1,4 @@
-use crate::app::Rosemary;
+use crate::app::QueryResultsPanel;
 use crate::app::ROSEMARY_SORT_COL_STR;
 use egui::Ui;
 use egui_extras::TableBuilder;
@@ -6,7 +6,7 @@ use egui_extras::TableBuilder;
 use crate::postgres::CellValue;
 use egui_extras::Column as eguiColumn;
 
-pub fn show_results_table_panel(ui: &mut Ui, app: &mut Rosemary) {
+pub fn show_results_table_panel(ui: &mut Ui, app: &mut QueryResultsPanel) {
     egui::ScrollArea::both().show(ui, |ui| {
         let mut table = TableBuilder::new(ui)
             .striped(true)

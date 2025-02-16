@@ -8,7 +8,6 @@ use crate::ui::editor_panel::show_editor_panel;
 use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
-use crate::ui::secondary_results_table_panel::show_secondary_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
 use rayon::prelude::*;
 use sqlformat::QueryParams;
@@ -33,6 +32,16 @@ pub fn format_sql(sql: &str) -> String {
     )
 }
 
+#[derive(Debug)]
+pub struct QueryResultsPanel {
+    pub current_page: usize,
+    pub rows_per_page: usize,
+    pub res_columns: Vec<String>,
+    pub parsed_res_rows: Vec<Vec<CellValue>>,
+    pub reversed: bool,
+    pub sort_by_col: String,
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 #[serde(default)]
 pub struct Rosemary {
@@ -53,35 +62,11 @@ pub struct Rosemary {
     pub code: String,
     pub query_to_execute: u8,
 
-    // Query result panel
-    #[serde(skip)]
-    pub current_page: usize,
-    #[serde(skip)]
-    pub rows_per_page: usize,
-    #[serde(skip)]
-    pub res_columns: Vec<String>,
-    #[serde(skip)]
-    pub parsed_res_rows: Vec<Vec<CellValue>>,
-    #[serde(skip)]
-    pub reversed: bool,
-    #[serde(skip)]
-    pub sort_by_col: String,
     #[serde(skip)]
     pub split_results_table: bool,
 
-    // Secondary query result panel
     #[serde(skip)]
-    pub secondary_current_page: usize,
-    #[serde(skip)]
-    pub secondary_rows_per_page: usize,
-    #[serde(skip)]
-    pub secondary_res_columns: Vec<String>,
-    #[serde(skip)]
-    pub secondary_parsed_res_rows: Vec<Vec<CellValue>>,
-    #[serde(skip)]
-    pub secondary_reversed: bool,
-    #[serde(skip)]
-    pub secondary_sort_by_col: String,
+    pub query_results: Vec<QueryResultsPanel>,
 
     // Table list
     #[serde(skip)]
@@ -106,18 +91,6 @@ impl Default for Rosemary {
             code: "".to_owned(),
             query_to_execute: 0,
             db_pool: None,
-            res_columns: vec![String::new()],
-            parsed_res_rows: Vec::new(),
-            current_page: 0,
-            rows_per_page: 1000,
-            reversed: true,
-            sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
-            secondary_res_columns: vec![String::new()],
-            secondary_parsed_res_rows: Vec::new(),
-            secondary_current_page: 0,
-            secondary_rows_per_page: 1000,
-            secondary_reversed: true,
-            secondary_sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
             tables: Vec::new(),
             should_fetch_table_list: false,
             table_filter: String::new(),
@@ -132,6 +105,14 @@ impl Default for Rosemary {
             query_execution_time_sec: 0.0,
             table_queries_are_additive: true,
             split_results_table: false,
+            query_results: vec![QueryResultsPanel {
+                res_columns: vec![String::new()],
+                parsed_res_rows: Vec::new(),
+                current_page: 0,
+                rows_per_page: 1000,
+                reversed: true,
+                sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+            }],
         }
     }
 }
@@ -152,20 +133,15 @@ impl Rosemary {
         self.should_fetch_table_list = true;
     }
 
-    fn reset_query_result_data(&mut self) {
-        self.res_columns = vec![String::new()];
-        self.parsed_res_rows = Vec::new();
-        self.current_page = 0;
-        self.reversed = true;
-        self.sort_by_col = String::from(ROSEMARY_SORT_COL_STR)
-    }
-
-    fn reset_secondary_query_result_data(&mut self) {
-        self.secondary_res_columns = vec![String::new()];
-        self.secondary_parsed_res_rows = Vec::new();
-        self.secondary_current_page = 0;
-        self.secondary_reversed = true;
-        self.secondary_sort_by_col = String::from(ROSEMARY_SORT_COL_STR)
+    fn reset_query_result_data(&mut self, idx: usize) {
+        self.query_results[idx] = QueryResultsPanel {
+            res_columns: vec![String::new()],
+            parsed_res_rows: Vec::new(),
+            current_page: 0,
+            rows_per_page: 1000,
+            reversed: true,
+            sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+        }
     }
 
     fn connect_to_db(&mut self) {
@@ -183,8 +159,10 @@ impl Rosemary {
                 self.db_pool = Some(pool);
                 self.connection_modal_open = false;
                 self.reset_table_data();
-                self.reset_query_result_data();
-                self.reset_secondary_query_result_data();
+                self.reset_query_result_data(0);
+                if self.query_results.len() > 1 {
+                    self.reset_query_result_data(1);
+                }
             }
             Err(e) => {
                 eprintln!("Failed to connect: {}", e);
@@ -305,22 +283,10 @@ impl eframe::App for Rosemary {
                     .map_or_else(String::new, |s| String::from(*s))
             };
 
-            if should_execute {
-                self.reset_query_result_data();
-            } else {
-                self.reset_secondary_query_result_data();
-            }
+            let query_idx = if should_execute { 0 } else { 1 };
+
+            self.reset_query_result_data(query_idx);
             let db_pool = self.db_pool.clone();
-            let col_res_ref = if should_execute {
-                &mut self.res_columns
-            } else {
-                &mut self.secondary_res_columns
-            };
-            let parsed_row_res_ref = if should_execute {
-                &mut self.parsed_res_rows
-            } else {
-                &mut self.secondary_parsed_res_rows
-            };
             let query_execution_time_ms_ref = &mut self.query_execution_time_ms;
             let query_execution_time_sec_ref = &mut self.query_execution_time_sec;
 
@@ -349,11 +315,11 @@ impl eframe::App for Rosemary {
             });
 
             if !error_message.is_empty() {
-                *col_res_ref = vec![
+                self.query_results[query_idx].res_columns = vec![
                     String::from("error_message"),
                     String::from(ROSEMARY_SORT_COL_STR),
                 ];
-                *parsed_row_res_ref = vec![vec![
+                self.query_results[query_idx].parsed_res_rows = vec![vec![
                     CellValue::Text(error_message),
                     CellValue::BigInt(0 as i64),
                 ]];
@@ -364,9 +330,9 @@ impl eframe::App for Rosemary {
                     .map(|col| String::from(col.name()))
                     .collect();
                 col_names.insert(col_names.len(), String::from(ROSEMARY_SORT_COL_STR));
-                *col_res_ref = col_names;
+                self.query_results[query_idx].res_columns = col_names;
 
-                *parsed_row_res_ref = res_rows
+                self.query_results[query_idx].parsed_res_rows = res_rows
                     .par_iter()
                     .enumerate()
                     .map(|(idx, row)| {
@@ -398,23 +364,34 @@ impl eframe::App for Rosemary {
             ui.push_id("top_table", |ui| {
                 ui.set_min_height(max_height);
                 ui.set_max_height(max_height);
-                show_results_table_panel(ui, self);
+                show_results_table_panel(ui, &mut self.query_results[0]);
             });
 
             if self.split_results_table {
+                if self.query_results.len() >= 1 {
+                    self.query_results.push(QueryResultsPanel {
+                        res_columns: vec![String::new()],
+                        parsed_res_rows: Vec::new(),
+                        current_page: 0,
+                        rows_per_page: 1000,
+                        reversed: true,
+                        sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+                    })
+                }
+
                 ui.separator();
 
                 ui.push_id("bottom_table", |ui| {
                     ui.set_min_height(max_height);
                     ui.set_max_height(max_height);
-                    show_secondary_results_table_panel(ui, self);
+                    show_results_table_panel(ui, &mut self.query_results[1]);
                 });
             }
         });
 
         egui::TopBottomPanel::bottom("pagination_panel").show(ctx, |ui| {
             show_query_metrics_panel(ui, self);
-            show_pagination_panel(ui, self);
+            show_pagination_panel(ui, &mut self.query_results[0]);
         });
         let mut connect_to_db = false;
 
