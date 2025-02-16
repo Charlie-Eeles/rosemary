@@ -18,7 +18,11 @@ pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
     };
 
     let available_height = ui.ctx().available_rect().height();
-    let max_height = if app.show_table_list { available_height * 0.65 } else { available_height * 0.95 };
+    let max_height = if app.show_table_list {
+        available_height * 0.65
+    } else {
+        available_height * 0.95
+    };
     egui::ScrollArea::vertical()
         .id_salt("code_editor")
         .max_height(max_height)
@@ -49,6 +53,16 @@ pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
         } else {
             if ui.add(egui::Button::new("⬆  Show tables")).clicked() {
                 app.show_table_list = true;
+            }
+        }
+
+        if app.split_results_table {
+            if ui.add(egui::Button::new("Merge")).clicked() {
+                app.split_results_table = false;
+            }
+        } else {
+            if ui.add(egui::Button::new("Split")).clicked() {
+                app.split_results_table = true;
             }
         }
 

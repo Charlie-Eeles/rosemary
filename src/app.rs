@@ -65,6 +65,8 @@ pub struct Rosemary {
     pub reversed: bool,
     #[serde(skip)]
     pub sort_by_col: String,
+    #[serde(skip)]
+    pub split_results_table: bool,
 
     // Table list
     #[serde(skip)]
@@ -107,7 +109,8 @@ impl Default for Rosemary {
             db_name: "".to_string(),
             query_execution_time_ms: 0,
             query_execution_time_sec: 0.0,
-            table_queries_are_additive: true
+            table_queries_are_additive: true,
+            split_results_table: false,
         }
     }
 }
@@ -323,7 +326,11 @@ impl eframe::App for Rosemary {
                             .columns()
                             .iter()
                             .map(|col| {
-                                convert_type(col.type_info().to_string().to_uppercase().as_str(), col, &row)
+                                convert_type(
+                                    col.type_info().to_string().to_uppercase().as_str(),
+                                    col,
+                                    &row,
+                                )
                             })
                             .collect();
                         row_values.push(CellValue::BigInt(idx as i64));
@@ -334,8 +341,29 @@ impl eframe::App for Rosemary {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            show_results_table_panel(ui, self);
+            let max_height = if self.split_results_table {
+                ui.available_height() / 2.0
+            } else {
+                ui.available_height()
+            };
+
+            ui.push_id("top_table", |ui| {
+                ui.set_min_height(max_height);
+                ui.set_max_height(max_height);
+                show_results_table_panel(ui, self);
+            });
+
+            if self.split_results_table {
+                ui.separator();
+
+                ui.push_id("bottom_table", |ui| {
+                    ui.set_min_height(max_height);
+                    ui.set_max_height(max_height);
+                    show_results_table_panel(ui, self);
+                });
+            }
         });
+
         egui::TopBottomPanel::bottom("pagination_panel").show(ctx, |ui| {
             show_query_metrics_panel(ui, self);
             show_pagination_panel(ui, self);
