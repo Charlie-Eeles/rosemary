@@ -60,6 +60,7 @@ pub struct Rosemary {
 
     // Code editor
     pub code: String,
+    #[serde(skip)]
     pub query_to_execute: u8,
 
     #[serde(skip)]
