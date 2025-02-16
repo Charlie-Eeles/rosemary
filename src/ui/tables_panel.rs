@@ -2,7 +2,14 @@ use crate::app::format_sql;
 use crate::app::Rosemary;
 use egui::Ui;
 
-pub fn show_tables_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut bool) {
+//TODO: Improve this arg logic
+pub fn show_tables_panel(
+    ui: &mut Ui,
+    app: &mut Rosemary,
+    should_execute: &mut bool,
+    should_execute_secondary: &mut bool,
+    shift_pressed: bool,
+) {
     ui.horizontal(|ui| {
         ui.label("Filter:");
         ui.add(egui::TextEdit::singleline(&mut app.table_filter));
@@ -33,7 +40,15 @@ pub fn show_tables_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
                     } else {
                         app.code = format_sql(&format!("SELECT * FROM {table_name};"));
                     }
-                    *should_execute = true;
+
+                    if shift_pressed {
+                        if !app.split_results_table {
+                            app.split_results_table = true;
+                        }
+                        *should_execute_secondary = true;
+                    } else {
+                        *should_execute = true;
+                    }
                 }
             }
         });

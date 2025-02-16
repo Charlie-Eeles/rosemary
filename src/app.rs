@@ -106,14 +106,24 @@ impl Default for Rosemary {
             query_execution_time_sec: 0.0,
             table_queries_are_additive: true,
             split_results_table: false,
-            query_results: vec![QueryResultsPanel {
-                res_columns: vec![String::new()],
-                parsed_res_rows: Vec::new(),
-                current_page: 0,
-                rows_per_page: 1000,
-                reversed: true,
-                sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
-            }],
+            query_results: vec![
+                QueryResultsPanel {
+                    res_columns: vec![String::new()],
+                    parsed_res_rows: Vec::new(),
+                    current_page: 0,
+                    rows_per_page: 1000,
+                    reversed: true,
+                    sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+                },
+                QueryResultsPanel {
+                    res_columns: vec![String::new()],
+                    parsed_res_rows: Vec::new(),
+                    current_page: 0,
+                    rows_per_page: 1000,
+                    reversed: true,
+                    sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+                },
+            ],
         }
     }
 }
@@ -222,6 +232,7 @@ impl eframe::App for Rosemary {
                 });
             });
         });
+        //TODO: Make this more dynamic
         let mut should_execute = false;
         let mut should_execute_secondary = false;
 
@@ -259,7 +270,18 @@ impl eframe::App for Rosemary {
             show_editor_panel(ui, self, &mut should_execute);
             ui.separator();
             if self.show_table_list {
-                show_tables_panel(ui, self, &mut should_execute);
+                let shift_pressed = if ctx.input(|i| i.modifiers.shift) {
+                    true
+                } else {
+                    false
+                };
+                show_tables_panel(
+                    ui,
+                    self,
+                    &mut should_execute,
+                    &mut should_execute_secondary,
+                    shift_pressed,
+                );
             }
         });
 
@@ -371,17 +393,6 @@ impl eframe::App for Rosemary {
             });
 
             if self.split_results_table {
-                if self.query_results.len() >= 1 {
-                    self.query_results.push(QueryResultsPanel {
-                        res_columns: vec![String::new()],
-                        parsed_res_rows: Vec::new(),
-                        current_page: 0,
-                        rows_per_page: 1000,
-                        reversed: true,
-                        sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
-                    })
-                }
-
                 ui.separator();
 
                 ui.push_id("bottom_table", |ui| {
