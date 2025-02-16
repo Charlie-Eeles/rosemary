@@ -283,6 +283,8 @@ impl eframe::App for Rosemary {
                     .map_or_else(String::new, |s| String::from(*s))
             };
 
+            //TODO: Make this work more dynamically, maybe the more things could be kept in vectors
+            //to allow for tabs in the future...
             let query_idx = if should_execute { 0 } else { 1 };
 
             self.reset_query_result_data(query_idx);

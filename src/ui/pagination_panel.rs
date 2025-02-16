@@ -1,4 +1,4 @@
-use crate::app::{QueryResultsPanel, Rosemary};
+use crate::app::QueryResultsPanel;
 use egui::Ui;
 
 pub fn show_pagination_panel(ui: &mut Ui, app: &mut QueryResultsPanel) {
