@@ -408,7 +408,7 @@ impl eframe::App for Rosemary {
 
         egui::TopBottomPanel::bottom("pagination_panel").show(ctx, |ui| {
             show_query_metrics_panel(ui, self);
-            show_pagination_panel(ui, &mut self.query_results[0]);
+            show_pagination_panel(ui, self);
         });
         let mut connect_to_db = false;
 

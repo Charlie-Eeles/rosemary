@@ -1,5 +1,5 @@
 use crate::app::Rosemary;
-use egui::Ui;
+use egui::{Layout, Ui};
 
 pub fn show_query_metrics_panel(ui: &mut Ui, app: &mut Rosemary) {
     ui.horizontal(|ui| {
@@ -16,19 +16,19 @@ pub fn show_query_metrics_panel(ui: &mut Ui, app: &mut Rosemary) {
         }
 
         if app.split_results_table {
-            ui.label("//");
-
-            if app.query_results[1].query_execution_time_sec > 1.0 {
-                ui.label(format!(
-                    "Execution time: {} sec",
-                    app.query_results[1].query_execution_time_sec
-                ));
-            } else {
-                ui.label(format!(
-                    "Execution time: {} ms",
-                    app.query_results[1].query_execution_time_ms
-                ));
-            }
+            ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
+                if app.query_results[1].query_execution_time_sec > 1.0 {
+                    ui.label(format!(
+                        "Execution time: {} sec",
+                        app.query_results[1].query_execution_time_sec
+                    ));
+                } else {
+                    ui.label(format!(
+                        "Execution time: {} ms",
+                        app.query_results[1].query_execution_time_ms
+                    ));
+                }
+            });
         }
     });
 }
