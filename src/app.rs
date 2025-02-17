@@ -261,6 +261,7 @@ impl eframe::App for Rosemary {
         {
             if ctx.input(|i| i.modifiers.shift) {
                 should_execute_secondary = true;
+                self.split_results_table = true;
             } else {
                 should_execute = true;
             }
