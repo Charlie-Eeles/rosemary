@@ -40,6 +40,8 @@ pub struct QueryResultsPanel {
     pub parsed_res_rows: Vec<Vec<CellValue>>,
     pub reversed: bool,
     pub sort_by_col: String,
+    pub query_execution_time_ms: u128,
+    pub query_execution_time_sec: f64,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
@@ -78,12 +80,6 @@ pub struct Rosemary {
     pub table_filter: String,
     pub show_table_list: bool,
     pub table_queries_are_additive: bool,
-
-    // Query performance panel
-    #[serde(skip)]
-    pub query_execution_time_ms: u128,
-    #[serde(skip)]
-    pub query_execution_time_sec: f64,
 }
 
 impl Default for Rosemary {
@@ -102,8 +98,6 @@ impl Default for Rosemary {
             db_user: "".to_string(),
             db_password: "".to_string(),
             db_name: "".to_string(),
-            query_execution_time_ms: 0,
-            query_execution_time_sec: 0.0,
             table_queries_are_additive: true,
             split_results_table: false,
             query_results: vec![
@@ -114,6 +108,8 @@ impl Default for Rosemary {
                     rows_per_page: 1000,
                     reversed: true,
                     sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+                    query_execution_time_ms: 0,
+                    query_execution_time_sec: 0.0,
                 },
                 QueryResultsPanel {
                     res_columns: vec![String::new()],
@@ -122,6 +118,8 @@ impl Default for Rosemary {
                     rows_per_page: 1000,
                     reversed: true,
                     sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+                    query_execution_time_ms: 0,
+                    query_execution_time_sec: 0.0,
                 },
             ],
         }
@@ -152,6 +150,8 @@ impl Rosemary {
             rows_per_page: 1000,
             reversed: true,
             sort_by_col: String::from(ROSEMARY_SORT_COL_STR),
+            query_execution_time_ms: 0,
+            query_execution_time_sec: 0.0,
         }
     }
 
@@ -313,8 +313,8 @@ impl eframe::App for Rosemary {
 
             self.reset_query_result_data(query_idx);
             let db_pool = self.db_pool.clone();
-            let query_execution_time_ms_ref = &mut self.query_execution_time_ms;
-            let query_execution_time_sec_ref = &mut self.query_execution_time_sec;
+            let mut query_execution_time_ms: u128 = 0;
+            let mut query_execution_time_sec = 0.0;
 
             let runtime = Runtime::new().expect("Failed to create runtime");
 
@@ -327,8 +327,8 @@ impl eframe::App for Rosemary {
                     match sqlx::query(&query_str).fetch_all(&pool).await {
                         Ok(rows) => {
                             let elapsed_time = query_start_time.elapsed();
-                            *query_execution_time_ms_ref = elapsed_time.as_millis();
-                            *query_execution_time_sec_ref =
+                            query_execution_time_ms = elapsed_time.as_millis();
+                            query_execution_time_sec =
                                 (elapsed_time.as_secs_f64() * 100.0).round() / 100.0;
                             res_rows = rows;
                         }
@@ -339,6 +339,8 @@ impl eframe::App for Rosemary {
                 }
                 (res_rows, error_message)
             });
+            self.query_results[query_idx].query_execution_time_ms = query_execution_time_ms;
+            self.query_results[query_idx].query_execution_time_sec = query_execution_time_sec;
 
             if !error_message.is_empty() {
                 self.query_results[query_idx].res_columns = vec![
