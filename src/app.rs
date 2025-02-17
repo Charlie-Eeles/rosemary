@@ -268,7 +268,7 @@ impl eframe::App for Rosemary {
         }
 
         egui::SidePanel::left("editor").show(ctx, |ui| {
-            show_editor_panel(ui, self, &mut should_execute);
+            show_editor_panel(ui, self, &mut should_execute, &mut should_execute_secondary);
             ui.separator();
             if self.show_table_list {
                 let shift_pressed = if ctx.input(|i| i.modifiers.shift) {

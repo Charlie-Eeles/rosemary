@@ -2,7 +2,12 @@ use crate::app::format_sql;
 use crate::app::Rosemary;
 use egui::{Layout, TextEdit, TextStyle, Ui};
 
-pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut bool) {
+pub fn show_editor_panel(
+    ui: &mut Ui,
+    app: &mut Rosemary,
+    should_execute: &mut bool,
+    should_execute_secondary: &mut bool,
+) {
     let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
 
     let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
@@ -39,7 +44,12 @@ pub fn show_editor_panel(ui: &mut Ui, app: &mut Rosemary, should_execute: &mut b
 
     ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
         if ui.add(egui::Button::new("Execute")).clicked() {
-            *should_execute = true;
+            if ui.ctx().input(|i| i.modifiers.shift) {
+                *should_execute_secondary = true;
+                app.split_results_table = true;
+            } else {
+                *should_execute = true;
+            }
         }
 
         if ui.add(egui::Button::new("Format")).clicked() {
