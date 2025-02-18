@@ -9,6 +9,7 @@ use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
+use egui::Visuals;
 use rayon::prelude::*;
 use sqlformat::QueryParams;
 use sqlformat::{format, FormatOptions};
@@ -217,8 +218,7 @@ impl eframe::App for Rosemary {
         if self.db_pool.is_some() && self.should_fetch_table_list {
             self.get_tables();
         }
-
-        catppuccin_egui::set_theme(ctx, catppuccin_egui::MOCHA);
+        ctx.set_visuals(Visuals::dark());
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
