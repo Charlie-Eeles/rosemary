@@ -3,13 +3,14 @@ use std::time::Instant;
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
 use crate::queries::{get_public_tables, PublicTable};
+use crate::themes::set_theme;
+use crate::themes::ROSEMARY_DARK;
 use crate::ui::connections_panel::show_connections_panel;
 use crate::ui::editor_panel::show_editor_panel;
 use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
-use egui::Visuals;
 use rayon::prelude::*;
 use sqlformat::QueryParams;
 use sqlformat::{format, FormatOptions};
@@ -218,7 +219,8 @@ impl eframe::App for Rosemary {
         if self.db_pool.is_some() && self.should_fetch_table_list {
             self.get_tables();
         }
-        ctx.set_visuals(Visuals::dark());
+
+        set_theme(ctx, ROSEMARY_DARK);
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {

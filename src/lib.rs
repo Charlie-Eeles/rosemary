@@ -3,5 +3,6 @@
 mod app;
 pub mod postgres;
 pub mod queries;
+pub mod themes;
 pub mod ui;
 pub use app::Rosemary;
