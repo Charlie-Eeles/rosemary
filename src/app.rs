@@ -47,15 +47,29 @@ pub struct QueryResultsPanel {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
-#[serde(default)]
-pub struct Rosemary {
-    // Connection management
-    // Persist on reload
+pub struct SavedConnection {
+    pub connection_name: String,
     pub db_host: String,
     pub db_port: String,
     pub db_user: String,
     pub db_password: String,
     pub db_name: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[serde(default)]
+pub struct Rosemary {
+    // Connection management
+    // Persist on reload
+    pub connection_name: String,
+    pub db_host: String,
+    pub db_port: String,
+    pub db_user: String,
+    pub db_password: String,
+    pub db_name: String,
+    pub connection_list: Vec<SavedConnection>,
+    pub connect_to_idx: usize,
+
     // Don't persist on reload
     #[serde(skip)]
     pub db_pool: Option<Pool<Postgres>>,
@@ -95,11 +109,14 @@ impl Default for Rosemary {
             table_filter: String::new(),
             show_table_list: true,
             connection_modal_open: false,
+            connection_name: "".to_string(),
             db_host: "localhost".to_string(),
             db_port: "5432".to_string(),
             db_user: "".to_string(),
             db_password: "".to_string(),
             db_name: "".to_string(),
+            connection_list: Vec::new(),
+            connect_to_idx: 0,
             table_queries_are_additive: true,
             split_results_table: false,
             query_results: vec![
@@ -159,9 +176,10 @@ impl Rosemary {
 
     fn connect_to_db(&mut self) {
         let runtime = Runtime::new().expect("Failed to create runtime");
+        let conn = &self.connection_list[self.connect_to_idx];
         let database_url = format!(
             "postgresql://{}:{}@{}:{}/{}",
-            self.db_user, self.db_password, self.db_host, self.db_port, self.db_name
+            conn.db_user, conn.db_password, conn.db_host, conn.db_port, conn.db_name
         );
 
         let connection_result =
@@ -309,7 +327,7 @@ impl eframe::App for Rosemary {
                     .map_or_else(String::new, |s| String::from(*s))
             };
 
-            //TODO: Make this work more dynamically, maybe the more things could be kept in vectors
+            //TODO: Make this work more dynamically, maybe more things could be kept in vectors
             //to allow for tabs in the future...
             let query_idx = if should_execute { 0 } else { 1 };
 
@@ -412,9 +430,10 @@ impl eframe::App for Rosemary {
             show_query_metrics_panel(ui, self);
             show_pagination_panel(ui, self);
         });
-        let mut connect_to_db = false;
 
         if self.connection_modal_open {
+            let mut connect_to_db = false;
+
             let mut connections_modal_open = self.connection_modal_open;
             egui::Window::new("Connections")
                 .collapsible(false)
@@ -424,10 +443,10 @@ impl eframe::App for Rosemary {
                     connect_to_db = show_connections_panel(ui, self);
                 });
             self.connection_modal_open = connections_modal_open;
-        }
 
-        if connect_to_db {
-            self.connect_to_db();
+            if connect_to_db  {
+                self.connect_to_db();
+            }
         }
     }
 }
