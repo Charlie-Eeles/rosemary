@@ -9,6 +9,7 @@ pub struct PublicTable {
 }
 
 pub async fn get_public_tables(db: &Pool<Postgres>) -> Result<Vec<PublicTable>, sqlx::Error> {
+    //TODO: make the schema name dynamic when schema selection is added
     sqlx::query_as!(
         PublicTable,
         "

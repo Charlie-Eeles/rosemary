@@ -194,7 +194,7 @@ impl Rosemary {
             conn.db_name.clone()
         };
         let database_url = format!(
-            "postgresql://{}:{}@{}:{}/{}",
+            "postgresql://{}:{}@{}:{}/{}?application_name=Rosemary",
             conn.db_user, conn.db_password, conn.db_host, conn.db_port, database
         );
 
