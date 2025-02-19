@@ -2,10 +2,13 @@ use std::time::Instant;
 
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
+use crate::queries::get_database_names;
+use crate::queries::DatabaseNames;
 use crate::queries::{get_public_tables, PublicTable};
 use crate::themes::set_theme;
 use crate::themes::ROSEMARY_DARK;
 use crate::ui::connections_panel::show_connections_panel;
+use crate::ui::databases_panel::show_databases_panel;
 use crate::ui::editor_panel::show_editor_panel;
 use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::query_metrics_panel::show_query_metrics_panel;
@@ -69,12 +72,17 @@ pub struct Rosemary {
     pub db_name: String,
     pub connection_list: Vec<SavedConnection>,
     pub connect_to_idx: usize,
+    pub selected_db: String,
 
     // Don't persist on reload
     #[serde(skip)]
     pub db_pool: Option<Pool<Postgres>>,
     #[serde(skip)]
     pub connection_modal_open: bool,
+    #[serde(skip)]
+    pub db_select_modal_open: bool,
+    #[serde(skip)]
+    pub databases: Vec<DatabaseNames>,
 
     // Code editor
     pub code: String,
@@ -105,16 +113,19 @@ impl Default for Rosemary {
             query_to_execute: 0,
             db_pool: None,
             tables: Vec::new(),
+            databases: Vec::new(),
             should_fetch_table_list: false,
             table_filter: String::new(),
             show_table_list: true,
             connection_modal_open: false,
+            db_select_modal_open: false,
             connection_name: "".to_string(),
             db_host: "localhost".to_string(),
             db_port: "5432".to_string(),
             db_user: "".to_string(),
             db_password: "".to_string(),
             db_name: "".to_string(),
+            selected_db: "".to_string(),
             connection_list: Vec::new(),
             connect_to_idx: 0,
             table_queries_are_additive: true,
@@ -177,9 +188,14 @@ impl Rosemary {
     fn connect_to_db(&mut self) {
         let runtime = Runtime::new().expect("Failed to create runtime");
         let conn = &self.connection_list[self.connect_to_idx];
+        let database = if !&self.selected_db.trim().is_empty() {
+            self.selected_db.clone()
+        } else {
+            conn.db_name.clone()
+        };
         let database_url = format!(
             "postgresql://{}:{}@{}:{}/{}",
-            conn.db_user, conn.db_password, conn.db_host, conn.db_port, conn.db_name
+            conn.db_user, conn.db_password, conn.db_host, conn.db_port, database
         );
 
         let connection_result =
@@ -222,6 +238,28 @@ impl Rosemary {
             }
         });
     }
+
+    fn get_databases(&mut self) {
+        self.databases = Vec::new();
+        let db_pool = self.db_pool.clone();
+        let databases_rows_ref = &mut self.databases;
+
+        let runtime = Runtime::new().expect("Failed to create runtime");
+        runtime.block_on(async move {
+            if let Some(pool) = db_pool {
+                match get_database_names(&pool).await {
+                    Ok(rows) => {
+                        if !rows.is_empty() {
+                            *databases_rows_ref = rows;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{:?}", e);
+                    }
+                }
+            }
+        });
+    }
 }
 
 impl eframe::App for Rosemary {
@@ -248,6 +286,10 @@ impl eframe::App for Rosemary {
                     }
                     if ui.button("Connections").clicked() {
                         self.connection_modal_open = true;
+                    }
+                    if ui.button("Databases").clicked() {
+                        self.db_select_modal_open = true;
+                        self.get_databases();
                     }
                 });
             });
@@ -444,8 +486,29 @@ impl eframe::App for Rosemary {
                 });
             self.connection_modal_open = connections_modal_open;
 
-            if connect_to_db  {
+            if connect_to_db {
                 self.connect_to_db();
+            }
+        }
+
+        if self.db_select_modal_open && self.db_pool.is_some() {
+            if self.databases.len() > 0 {
+                let mut connect_to_db = false;
+
+                let mut db_select_modal_open = self.db_select_modal_open;
+                egui::Window::new("Databases")
+                    .collapsible(false)
+                    .resizable(false)
+                    .open(&mut db_select_modal_open)
+                    .show(ctx, |ui| {
+                        connect_to_db = show_databases_panel(ui, self);
+                    });
+                self.db_select_modal_open = db_select_modal_open;
+
+                if connect_to_db {
+                    self.connect_to_db();
+                    self.db_select_modal_open = false;
+                }
             }
         }
     }

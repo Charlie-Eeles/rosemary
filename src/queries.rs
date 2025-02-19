@@ -25,3 +25,23 @@ pub async fn get_public_tables(db: &Pool<Postgres>) -> Result<Vec<PublicTable>, 
     .fetch_all(db)
     .await
 }
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DatabaseNames {
+    pub datname: Option<String>,
+}
+
+pub async fn get_database_names(db: &Pool<Postgres>) -> Result<Vec<DatabaseNames>, sqlx::Error> {
+    sqlx::query_as!(
+        DatabaseNames,
+        "
+        SELECT
+          datname
+        FROM
+          pg_database;
+        "
+    )
+    .fetch_all(db)
+    .await
+}
