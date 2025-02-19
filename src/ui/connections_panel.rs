@@ -1,5 +1,5 @@
-use egui::Ui;
 use crate::Rosemary;
+use egui::Ui;
 
 pub fn show_connections_panel(ui: &mut Ui, app: &mut Rosemary) -> bool {
     let mut connect_to_db = false;
@@ -11,7 +11,7 @@ pub fn show_connections_panel(ui: &mut Ui, app: &mut Rosemary) -> bool {
     ui.label("Username:");
     ui.text_edit_singleline(&mut app.db_user);
     ui.label("Password:");
-    ui.text_edit_singleline(&mut app.db_password);
+    ui.horizontal(|ui| ui.add(egui::TextEdit::singleline(&mut app.db_password).password(true)));
     ui.label("Database Name:");
     ui.text_edit_singleline(&mut app.db_name);
 
