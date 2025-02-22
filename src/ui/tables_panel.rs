@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{app::Rosemary, query_functions::pg_query_handlers::format_sql};
 use egui::Ui;
 
@@ -17,38 +19,59 @@ pub fn show_tables_panel(
             app.table_filter.clear();
         }
     });
+    let mut schema_table_map = BTreeMap::new();
+    for table in &app.tables {
+        match &table.table_schema {
+            Some(schema) => {
+                schema_table_map
+                    .entry(schema)
+                    .or_insert(Vec::new())
+                    .push(table);
+            }
+            None => {}
+        }
+    }
 
     egui::ScrollArea::vertical()
         .id_salt("public_table_list")
         .show(ui, |ui| {
-            for table in &app.tables {
-                let table_name = table.table_name.as_deref().unwrap_or("NULL");
-                if !app.table_filter.trim().is_empty()
-                    && !table_name.to_lowercase().contains(&app.table_filter)
-                {
-                    continue;
-                }
-                let table_type = table.table_type.as_deref().unwrap_or("NULL");
-                let button_label = format!("{table_name} [{table_type}]");
-                let button = egui::Button::new(button_label);
+            for (schema, tables) in &schema_table_map {
+                ui.push_id(schema, |ui| {
+                    ui.collapsing(format!("{} ( {} )", schema, tables.len()), |ui| {
+                        for table in tables {
+                            let table_name = table.table_name.as_deref().unwrap_or("NULL");
+                            let table_schema = table.table_schema.as_deref().unwrap_or("NULL");
 
-                if ui.add_sized([ui.available_width(), 0.0], button).clicked() {
-                    if app.table_queries_are_additive {
-                        let code = app.code.clone() + &format!("SELECT * FROM {table_name};");
-                        app.code = format_sql(&code);
-                    } else {
-                        app.code = format_sql(&format!("SELECT * FROM {table_name};"));
-                    }
+                            if !app.table_filter.trim().is_empty()
+                                && !table_name.to_lowercase().contains(&app.table_filter)
+                            {
+                                continue;
+                            }
+                            let table_type = table.table_type.as_deref().unwrap_or("NULL");
+                            let button_label = format!("{table_name} [{table_type}]");
+                            let button = egui::Button::new(button_label);
 
-                    if shift_pressed {
-                        if !app.split_results_table {
-                            app.split_results_table = true;
+                            if ui.add_sized([ui.available_width(), 0.0], button).clicked() {
+                                if app.table_queries_are_additive {
+                                    let code =
+                                        app.code.clone() + &format!("SELECT * FROM {table_schema}.{table_name};");
+                                    app.code = format_sql(&code);
+                                } else {
+                                    app.code = format_sql(&format!("SELECT * FROM {table_schema}.{table_name};"));
+                                }
+
+                                if shift_pressed {
+                                    if !app.split_results_table {
+                                        app.split_results_table = true;
+                                    }
+                                    *should_execute_secondary = true;
+                                } else {
+                                    *should_execute = true;
+                                }
+                            }
                         }
-                        *should_execute_secondary = true;
-                    } else {
-                        *should_execute = true;
-                    }
-                }
+                    });
+                });
             }
         });
 }

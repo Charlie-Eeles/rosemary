@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct PublicTable {
     pub table_name: Option<String>,
     pub table_type: Option<String>,
+    pub table_schema: Option<String>,
 }
 
 pub async fn get_public_tables(db: &Pool<Postgres>) -> Result<Vec<PublicTable>, sqlx::Error> {
@@ -14,13 +15,15 @@ pub async fn get_public_tables(db: &Pool<Postgres>) -> Result<Vec<PublicTable>, 
         PublicTable,
         "
         SELECT
-          table_name, table_type
+          table_name,
+          table_type,
+          table_schema
         FROM
           information_schema.tables
-        WHERE
-          table_schema = 'public'
         ORDER BY
-          table_type, table_name;
+          table_schema,
+          table_type,
+          table_name;
         "
     )
     .fetch_all(db)
