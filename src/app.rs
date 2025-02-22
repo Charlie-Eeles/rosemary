@@ -218,7 +218,7 @@ impl Rosemary {
 
     fn get_tables(&mut self) {
         self.should_fetch_table_list = false;
-        let db_pool = self.db_pool.clone();
+        let db_pool = &mut self.db_pool;
         let table_rows_ref = &mut self.tables;
 
         let runtime = Runtime::new().expect("Failed to create runtime");
@@ -240,7 +240,7 @@ impl Rosemary {
 
     fn get_databases(&mut self) {
         self.databases = Vec::new();
-        let db_pool = self.db_pool.clone();
+        let db_pool = &mut self.db_pool;
         let databases_rows_ref = &mut self.databases;
 
         let runtime = Runtime::new().expect("Failed to create runtime");
@@ -373,7 +373,7 @@ impl eframe::App for Rosemary {
             let query_idx = if should_execute { 0 } else { 1 };
 
             self.reset_query_result_data(query_idx);
-            let db_pool = self.db_pool.clone();
+            let db_pool = &mut self.db_pool;
             
             let (res_rows, error_message, query_execution_time_ms, query_execution_time_sec) = execute_query(db_pool, query_str);
             self.query_results[query_idx].query_execution_time_ms = query_execution_time_ms;
