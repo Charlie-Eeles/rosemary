@@ -1,10 +1,10 @@
-use std::time::Instant;
-
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
-use crate::queries::get_database_names;
-use crate::queries::DatabaseNames;
-use crate::queries::{get_public_tables, PublicTable};
+use crate::query_functions::pg_data::get_database_names;
+use crate::query_functions::pg_data::get_public_tables;
+use crate::query_functions::pg_data::DatabaseNames;
+use crate::query_functions::pg_data::PublicTable;
+use crate::query_functions::pg_query_handlers::execute_query;
 use crate::themes::set_theme;
 use crate::themes::ROSEMARY_DARK;
 use crate::ui::connections_panel::show_connections_panel;
@@ -17,7 +17,6 @@ use crate::ui::tables_panel::show_tables_panel;
 use rayon::prelude::*;
 use sqlformat::QueryParams;
 use sqlformat::{format, FormatOptions};
-use sqlx::postgres::PgRow;
 use sqlx::Column;
 use sqlx::Row;
 use sqlx::{Pool, Postgres};
@@ -375,32 +374,8 @@ impl eframe::App for Rosemary {
 
             self.reset_query_result_data(query_idx);
             let db_pool = self.db_pool.clone();
-            let mut query_execution_time_ms: u128 = 0;
-            let mut query_execution_time_sec = 0.0;
-
-            let runtime = Runtime::new().expect("Failed to create runtime");
-
-            let (res_rows, error_message) = runtime.block_on(async {
-                let mut res_rows: Vec<PgRow> = Vec::new();
-                let mut error_message: String = String::new();
-
-                if let Some(pool) = db_pool {
-                    let query_start_time = Instant::now();
-                    match sqlx::query(&query_str).fetch_all(&pool).await {
-                        Ok(rows) => {
-                            let elapsed_time = query_start_time.elapsed();
-                            query_execution_time_ms = elapsed_time.as_millis();
-                            query_execution_time_sec =
-                                (elapsed_time.as_secs_f64() * 100.0).round() / 100.0;
-                            res_rows = rows;
-                        }
-                        Err(e) => {
-                            error_message = format!("{e}");
-                        }
-                    }
-                }
-                (res_rows, error_message)
-            });
+            
+            let (res_rows, error_message, query_execution_time_ms, query_execution_time_sec) = execute_query(db_pool, query_str);
             self.query_results[query_idx].query_execution_time_ms = query_execution_time_ms;
             self.query_results[query_idx].query_execution_time_sec = query_execution_time_sec;
 
