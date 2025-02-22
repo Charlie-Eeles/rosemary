@@ -1,5 +1,4 @@
-use crate::app::format_sql;
-use crate::app::Rosemary;
+use crate::{app::Rosemary, query_functions::pg_query_handlers::format_sql};
 use egui::{Layout, TextEdit, TextStyle, Ui};
 
 pub fn show_editor_panel(

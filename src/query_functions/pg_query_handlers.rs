@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use sqlformat::{format, FormatOptions, QueryParams};
 use sqlx::{postgres::PgRow, Pool, Postgres};
 use tokio::runtime::Runtime;
 
@@ -36,3 +37,14 @@ pub fn execute_query(db_pool: &Option<Pool<Postgres>>, query_str: String) -> (Ve
 }
 
 
+pub fn format_sql(sql: &str) -> String {
+    format(
+        sql,
+        &QueryParams::None,
+        FormatOptions {
+            indent: sqlformat::Indent::Spaces(2),
+            uppercase: true,
+            lines_between_queries: 1,
+        },
+    )
+}

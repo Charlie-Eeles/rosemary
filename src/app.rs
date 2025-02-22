@@ -15,26 +15,12 @@ use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
 use rayon::prelude::*;
-use sqlformat::QueryParams;
-use sqlformat::{format, FormatOptions};
 use sqlx::Column;
 use sqlx::Row;
 use sqlx::{Pool, Postgres};
 use tokio::runtime::Runtime;
 
 pub const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
-
-pub fn format_sql(sql: &str) -> String {
-    format(
-        sql,
-        &QueryParams::None,
-        FormatOptions {
-            indent: sqlformat::Indent::Spaces(2),
-            uppercase: true,
-            lines_between_queries: 1,
-        },
-    )
-}
 
 #[derive(Debug)]
 pub struct QueryResultsPanel {
