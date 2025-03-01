@@ -4,6 +4,10 @@ use dotenv::dotenv;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
+    use std::time::Duration;
+
+    use tokio::runtime::Runtime;
+
     dotenv().ok();
     env_logger::init();
 
@@ -17,6 +21,18 @@ fn main() -> eframe::Result {
             ),
         ..Default::default()
     };
+
+    let rt = Runtime::new().expect("Unable to create Runtime");
+    let _enter = rt.enter();
+
+    std::thread::spawn(move || {
+        rt.block_on(async {
+            loop {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            }
+        })
+    });
+
     eframe::run_native(
         "rosemary",
         native_options,

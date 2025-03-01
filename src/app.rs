@@ -1,3 +1,4 @@
+
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
 use crate::query_functions::pg_data::get_database_names;
@@ -15,9 +16,11 @@ use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
 use crate::ui::tables_panel::show_tables_panel;
 use rayon::prelude::*;
+use sqlx::postgres::PgRow;
 use sqlx::Column;
 use sqlx::Row;
 use sqlx::{Pool, Postgres};
+use std::sync::mpsc::{Receiver, Sender};
 use tokio::runtime::Runtime;
 
 pub const ROSEMARY_SORT_COL_STR: &str = "__rosemary_default_sort_by_col";
@@ -44,7 +47,7 @@ pub struct SavedConnection {
     pub db_name: String,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Rosemary {
     // Connection management
@@ -90,10 +93,16 @@ pub struct Rosemary {
     pub table_filter: String,
     pub show_table_list: bool,
     pub table_queries_are_additive: bool,
+
+    #[serde(skip)]
+    pub query_result_tx: Sender<(Vec<PgRow>, String, u128, f64)>,
+    #[serde(skip)]
+    pub query_result_rx: Receiver<(Vec<PgRow>, String, u128, f64)>,
 }
 
 impl Default for Rosemary {
     fn default() -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
         Self {
             code: "".to_owned(),
             query_to_execute: 0,
@@ -116,6 +125,8 @@ impl Default for Rosemary {
             connect_to_idx: 0,
             table_queries_are_additive: true,
             split_results_table: false,
+            query_result_tx: tx,
+            query_result_rx: rx,
             query_results: vec![
                 QueryResultsPanel {
                     res_columns: vec![String::new()],
@@ -360,9 +371,22 @@ impl eframe::App for Rosemary {
             let query_idx = if should_execute { 0 } else { 1 };
 
             self.reset_query_result_data(query_idx);
-            let db_pool = &mut self.db_pool;
-            
-            let (res_rows, error_message, query_execution_time_ms, query_execution_time_sec) = execute_query(db_pool, query_str);
+
+            let db_pool = self.db_pool.clone();
+            let tx = self.query_result_tx.clone();
+            let ctx = ctx.clone();
+
+            tokio::spawn(async move {
+                execute_query(&db_pool, query_str, tx).await;
+                ctx.request_repaint();
+            });
+        }
+
+        if let Ok(q_res) = self.query_result_rx.try_recv() {
+            let query_idx = 0;
+            let (res_rows, error_message, query_execution_time_ms, query_execution_time_sec) =
+                q_res;
+
             self.query_results[query_idx].query_execution_time_ms = query_execution_time_ms;
             self.query_results[query_idx].query_execution_time_sec = query_execution_time_sec;
 
