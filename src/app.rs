@@ -57,6 +57,7 @@ pub struct Rosemary {
     pub db_name: String,
     pub connection_list: Vec<SavedConnection>,
     pub connect_to_idx: usize,
+    #[serde(skip)]
     pub selected_db: String,
 
     // Don't persist on reload
