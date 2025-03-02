@@ -100,9 +100,9 @@ pub struct Rosemary {
     pub query_result_rx: Receiver<(Vec<PgRow>, String, u128, f64)>,
 
     #[serde(skip)]
-    pub query_PID_tx: Sender<i32>,
+    pub query_pid_tx: Sender<i32>,
     #[serde(skip)]
-    pub query_PID_rx: Receiver<i32>,
+    pub query_pid_rx: Receiver<i32>,
 }
 
 impl Default for Rosemary {
@@ -133,8 +133,8 @@ impl Default for Rosemary {
             split_results_table: false,
             query_result_tx: tx,
             query_result_rx: rx,
-            query_PID_tx: pid_tx,
-            query_PID_rx: pid_rx,
+            query_pid_tx: pid_tx,
+            query_pid_rx: pid_rx,
             query_results: vec![
                 QueryResultsPanel {
                     res_columns: vec![String::new()],
@@ -297,7 +297,7 @@ impl eframe::App for Rosemary {
                         self.get_databases();
                     }
                     if ui.button("Cancel running query").clicked() {
-                        if let Ok(pid) = self.query_PID_rx.try_recv() {
+                        if let Ok(pid) = self.query_pid_rx.try_recv() {
                             let db_pool = self.db_pool.clone().unwrap();
                             tokio::spawn(async move {
                                 if let Err(err) = cancel_query(&db_pool, pid).await {
@@ -392,7 +392,7 @@ impl eframe::App for Rosemary {
 
             let db_pool = self.db_pool.clone();
             let tx = self.query_result_tx.clone();
-            let pid_tx = self.query_PID_tx.clone();
+            let pid_tx = self.query_pid_tx.clone();
             let ctx = ctx.clone();
 
             tokio::spawn(async move {
