@@ -3,8 +3,10 @@ use crate::postgres::CellValue;
 use crate::query_functions::pg_data::cancel_query;
 use crate::query_functions::pg_data::get_database_names;
 use crate::query_functions::pg_data::get_public_tables;
+use crate::query_functions::pg_data::get_running_queries_data;
 use crate::query_functions::pg_data::DatabaseNames;
 use crate::query_functions::pg_data::PublicTable;
+use crate::query_functions::pg_data::RunningQueriesData;
 use crate::query_functions::pg_query_handlers::execute_query;
 use crate::themes::set_theme;
 use crate::themes::ROSEMARY_DARK;
@@ -14,6 +16,7 @@ use crate::ui::editor_panel::show_editor_panel;
 use crate::ui::pagination_panel::show_pagination_panel;
 use crate::ui::query_metrics_panel::show_query_metrics_panel;
 use crate::ui::results_table_panel::show_results_table_panel;
+use crate::ui::running_queries_panel::show_running_queries_panel;
 use crate::ui::tables_panel::show_tables_panel;
 use rayon::prelude::*;
 use sqlx::postgres::PgRow;
@@ -103,6 +106,11 @@ pub struct Rosemary {
     pub query_pid_tx: Sender<i32>,
     #[serde(skip)]
     pub query_pid_rx: Receiver<i32>,
+
+    #[serde(skip)]
+    pub running_queries: Vec<RunningQueriesData>,
+    #[serde(skip)]
+    pub running_queries_modal_open: bool,
 }
 
 impl Default for Rosemary {
@@ -157,6 +165,8 @@ impl Default for Rosemary {
                     query_execution_time_sec: 0.0,
                 },
             ],
+            running_queries: Vec::new(),
+            running_queries_modal_open: false,
         }
     }
 }
@@ -265,6 +275,28 @@ impl Rosemary {
             }
         });
     }
+
+    fn get_running_queries(&mut self) {
+        self.running_queries = Vec::new();
+        let db_pool = &mut self.db_pool;
+        let running_queries_rows_ref = &mut self.running_queries;
+
+        let runtime = Runtime::new().expect("Failed to create runtime");
+        runtime.block_on(async move {
+            if let Some(pool) = db_pool {
+                match get_running_queries_data(&pool).await {
+                    Ok(rows) => {
+                        if !rows.is_empty() {
+                            *running_queries_rows_ref = rows;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{:?}", e);
+                    }
+                }
+            }
+        });
+    }
 }
 
 impl eframe::App for Rosemary {
@@ -302,6 +334,10 @@ impl eframe::App for Rosemary {
                 ui.menu_button("Queries", |ui| {
                     ui.checkbox(&mut self.table_queries_are_additive, "Additive queries");
                     ui.separator();
+                    if ui.button("Running queries").clicked() {
+                        self.running_queries_modal_open = true;
+                        self.get_running_queries();
+                    }
                     if ui.button("Cancel running query").clicked() {
                         if let Ok(pid) = self.query_pid_rx.try_recv() {
                             let db_pool = self.db_pool.clone().unwrap();
@@ -521,6 +557,18 @@ impl eframe::App for Rosemary {
                     self.db_select_modal_open = false;
                 }
             }
+        }
+
+        if self.running_queries_modal_open {
+            let mut running_queries_modal_open = self.running_queries_modal_open;
+            egui::Window::new("Running Queries")
+                .collapsible(false)
+                .resizable(true)
+                .open(&mut running_queries_modal_open)
+                .show(ctx, |ui| {
+                    show_running_queries_panel(ui, self);
+                });
+            self.running_queries_modal_open = running_queries_modal_open;
         }
     }
 }

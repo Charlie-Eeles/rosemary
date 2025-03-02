@@ -1,5 +1,7 @@
+use std::net::Ipv4Addr;
+
 use serde::{Deserialize, Serialize};
-use sqlx::{PgConnection, Pool, Postgres};
+use sqlx::{postgres::types::Oid, PgConnection, Pool, Postgres};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PublicTable {
@@ -59,11 +61,49 @@ pub async fn get_query_pid(db: &mut PgConnection) -> Result<QueryPID, sqlx::Erro
         .await
 }
 
-
 pub async fn cancel_query(db: &Pool<Postgres>, pid: i32) -> Result<(), sqlx::Error> {
     if pid > 0 {
         let query = format!("SELECT pg_terminate_backend({})", pid);
         sqlx::query(&query).execute(db).await?;
     }
     Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RunningQueriesData {
+    pub datid: Option<Oid>,
+    pub datname: Option<String>,
+    pub pid: Option<i32>,
+    pub state: Option<String>,
+    pub query: Option<String>,
+    pub usesysid: Option<Oid>,
+    pub usename: Option<String>,
+    pub application_name: Option<String>,
+    //pub client_addr: Option<Ipv4Addr>,
+    pub client_port: Option<i32>,
+    //pub query_start: Option<String>,
+}
+
+pub async fn get_running_queries_data(db: &Pool<Postgres>) -> Result<Vec<RunningQueriesData>, sqlx::Error> {
+    sqlx::query_as!(
+        RunningQueriesData,
+        "
+        SELECT
+          datid,
+          datname,
+          pid,
+          state,
+          query,
+          usesysid,
+          usename,
+          application_name,
+          client_port
+        FROM
+          pg_stat_activity
+        WHERE
+          state = 'active';
+        "
+    )
+    .fetch_all(db)
+    .await
 }

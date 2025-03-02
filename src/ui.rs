@@ -5,3 +5,4 @@ pub mod tables_panel;
 pub mod pagination_panel;
 pub mod query_metrics_panel;
 pub mod databases_panel;
+pub mod running_queries_panel;
