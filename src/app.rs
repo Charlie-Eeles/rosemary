@@ -289,6 +289,8 @@ impl eframe::App for Rosemary {
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
+                });
+                ui.menu_button("Connection", |ui| {
                     if ui.button("Connections").clicked() {
                         self.connection_modal_open = true;
                     }
@@ -296,6 +298,8 @@ impl eframe::App for Rosemary {
                         self.db_select_modal_open = true;
                         self.get_databases();
                     }
+                });
+                ui.menu_button("Queries", |ui| {
                     if ui.button("Cancel running query").clicked() {
                         if let Ok(pid) = self.query_pid_rx.try_recv() {
                             let db_pool = self.db_pool.clone().unwrap();
