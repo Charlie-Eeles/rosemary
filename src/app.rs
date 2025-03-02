@@ -1,6 +1,6 @@
-
 use crate::postgres::convert_type;
 use crate::postgres::CellValue;
+use crate::query_functions::pg_data::cancel_query;
 use crate::query_functions::pg_data::get_database_names;
 use crate::query_functions::pg_data::get_public_tables;
 use crate::query_functions::pg_data::DatabaseNames;
@@ -98,11 +98,17 @@ pub struct Rosemary {
     pub query_result_tx: Sender<(Vec<PgRow>, String, u128, f64)>,
     #[serde(skip)]
     pub query_result_rx: Receiver<(Vec<PgRow>, String, u128, f64)>,
+
+    #[serde(skip)]
+    pub query_PID_tx: Sender<i32>,
+    #[serde(skip)]
+    pub query_PID_rx: Receiver<i32>,
 }
 
 impl Default for Rosemary {
     fn default() -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
+        let (pid_tx, pid_rx) = std::sync::mpsc::channel();
         Self {
             code: "".to_owned(),
             query_to_execute: 0,
@@ -127,6 +133,8 @@ impl Default for Rosemary {
             split_results_table: false,
             query_result_tx: tx,
             query_result_rx: rx,
+            query_PID_tx: pid_tx,
+            query_PID_rx: pid_rx,
             query_results: vec![
                 QueryResultsPanel {
                     res_columns: vec![String::new()],
@@ -288,6 +296,16 @@ impl eframe::App for Rosemary {
                         self.db_select_modal_open = true;
                         self.get_databases();
                     }
+                    if ui.button("Cancel running query").clicked() {
+                        if let Ok(pid) = self.query_PID_rx.try_recv() {
+                            let db_pool = self.db_pool.clone().unwrap();
+                            tokio::spawn(async move {
+                                if let Err(err) = cancel_query(&db_pool, pid).await {
+                                    eprintln!("Failed to cancel query: {}", err);
+                                }
+                            });
+                        }
+                    }
                 });
             });
         });
@@ -374,10 +392,11 @@ impl eframe::App for Rosemary {
 
             let db_pool = self.db_pool.clone();
             let tx = self.query_result_tx.clone();
+            let pid_tx = self.query_PID_tx.clone();
             let ctx = ctx.clone();
 
             tokio::spawn(async move {
-                execute_query(&db_pool, query_str, tx).await;
+                execute_query(&db_pool, query_str, tx, pid_tx).await;
                 ctx.request_repaint();
             });
         }
