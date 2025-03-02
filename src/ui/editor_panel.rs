@@ -74,7 +74,5 @@ pub fn show_editor_panel(
                 app.split_results_table = true;
             }
         }
-
-        ui.checkbox(&mut app.table_queries_are_additive, "Additive queries");
     });
 }

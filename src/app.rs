@@ -300,6 +300,8 @@ impl eframe::App for Rosemary {
                     }
                 });
                 ui.menu_button("Queries", |ui| {
+                    ui.checkbox(&mut self.table_queries_are_additive, "Additive queries");
+                    ui.separator();
                     if ui.button("Cancel running query").clicked() {
                         if let Ok(pid) = self.query_pid_rx.try_recv() {
                             let db_pool = self.db_pool.clone().unwrap();
