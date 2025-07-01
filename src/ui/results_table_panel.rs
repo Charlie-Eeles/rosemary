@@ -118,6 +118,7 @@ pub fn show_results_table_panel(ui: &mut Ui, app: &mut QueryResultsPanel) {
                                     CellValue::Unsupported => "Unsupported".to_string(),
                                     CellValue::Uuid(val) => val.to_string(),
                                     CellValue::BigDecimal(val) => val.to_string(),
+                                    CellValue::Bool(val) => val.to_string(),
                                 };
                                 if cell_content.is_empty() {
                                     ui.label(String::from("[Empty]"));
