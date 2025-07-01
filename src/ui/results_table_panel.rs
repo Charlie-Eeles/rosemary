@@ -119,7 +119,11 @@ pub fn show_results_table_panel(ui: &mut Ui, app: &mut QueryResultsPanel) {
                                     CellValue::Uuid(val) => val.to_string(),
                                     CellValue::BigDecimal(val) => val.to_string(),
                                 };
-                                ui.label(cell_content);
+                                if cell_content.is_empty() {
+                                    ui.label(String::from("[Empty]"));
+                                } else {
+                                    ui.label(cell_content);
+                                }
                             });
                         }
                     }
