@@ -69,8 +69,8 @@ pub fn convert_type(col_type: &str, col: &PgColumn, row: &PgRow) -> CellValue {
             .unwrap_or(CellValue::Unsupported),
 
         "TIMESTAMP" => row
-            .try_get::<chrono::DateTime<chrono::Utc>, _>(ord)
-            .map(|dt| CellValue::Text(dt.to_rfc3339()))
+            .try_get::<chrono::NaiveDateTime, _>(ord)
+            .map(|dt| CellValue::Text(dt.to_string()))
             .unwrap_or(CellValue::Unsupported),
 
         "DATE" => row
