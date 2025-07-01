@@ -53,7 +53,6 @@ pub async fn execute_query(
     ));
 }
 
-
 pub fn format_sql(sql: &str) -> String {
     format(
         sql,

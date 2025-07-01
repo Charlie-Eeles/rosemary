@@ -84,7 +84,9 @@ pub struct RunningQueriesData {
     //pub query_start: Option<String>,
 }
 
-pub async fn get_running_queries_data(db: &Pool<Postgres>) -> Result<Vec<RunningQueriesData>, sqlx::Error> {
+pub async fn get_running_queries_data(
+    db: &Pool<Postgres>,
+) -> Result<Vec<RunningQueriesData>, sqlx::Error> {
     sqlx::query_as!(
         RunningQueriesData,
         "

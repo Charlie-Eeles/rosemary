@@ -90,16 +90,13 @@ pub fn convert_type(col_type: &str, col: &PgColumn, row: &PgRow) -> CellValue {
             .map(CellValue::Uuid)
             .unwrap_or(CellValue::Unsupported),
 
-
         // -------------------- Bool --------------------
-        
         "BOOL" => row
             .try_get::<bool, _>(ord)
             .map(CellValue::Bool)
             .unwrap_or(CellValue::Unsupported),
 
         // -------------------- Other & Unknown --------------------
-
         _ => row
             .try_get_unchecked::<String, _>(ord)
             .map(CellValue::Text)
