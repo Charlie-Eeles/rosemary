@@ -23,6 +23,7 @@ use sqlx::postgres::PgRow;
 use sqlx::Column;
 use sqlx::Row;
 use sqlx::{Pool, Postgres};
+use urlencoding::encode;
 use std::sync::mpsc::{Receiver, Sender};
 use tokio::runtime::Runtime;
 
@@ -210,7 +211,7 @@ impl Rosemary {
         };
         let database_url = format!(
             "postgresql://{}:{}@{}:{}/{}?application_name=Rosemary",
-            conn.db_user, conn.db_password, conn.db_host, conn.db_port, database
+            encode(&conn.db_user), encode(&conn.db_password), conn.db_host, conn.db_port, database
         );
 
         let connection_result =
